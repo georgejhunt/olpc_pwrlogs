@@ -12,7 +12,7 @@ srpm: tarball
 
 tarball:
 	mkdir -p ${BUILD_DIR}
-	tar cvzf ${BUILD_DIR}/${NAME}.tar.gz --exclude=~* olpc-pwr-log olpc-solar-log process-pwr_log.py
+	tar cvzf ${BUILD_DIR}/${NAME}.tar.gz --exclude=~* olpc-pwr-log olpc-solar-log rtcwake-log rtcwake-screen-log process-pwr_log.py
 	cp ${BUILD_DIR}/${NAME}.tar.gz ${BUILD_DIR}/${NAME}.tgz
 
 key: tarball

@@ -1,7 +1,7 @@
 Name:		olpc-pwrlogs
 Version:	0.2.0
 Release:	1%{?dist}
-Summary:	OLPC power log monitor
+Summary:	OLPC power log monitors
 
 Group:		System Environment/Base
 License:	Public-Domain
@@ -13,12 +13,6 @@ BuildArch: noarch
 %description
 OLPC power draw loggers.
 
-# TODO: add tests into this RPM once things have settled down.
-# however we should also leave the ability for the initscript to unpack
-# an OFW-provided update, in case changes need to be made after the OS
-# release has been finalized
-
-
 %prep
 %setup -c -n pwrlog_src 
 
@@ -28,8 +22,10 @@ OLPC power draw loggers.
 
 %install
 rm -rf $RPM_BUILD_ROOT
-%{__install} -D -m 0755 olpc-pwr-log	$RPM_BUILD_ROOT/usr/bin/olpc-pwr-log
-%{__install} -D -m 0755 olpc-solar-log	$RPM_BUILD_ROOT/usr/bin/olpc-solar-log
+%{__install} -D -m 0755 olpc-pwr-log		$RPM_BUILD_ROOT/usr/bin/olpc-pwr-log
+%{__install} -D -m 0755 olpc-solar-log		$RPM_BUILD_ROOT/usr/bin/olpc-solar-log
+%{__install} -D -m 0755 rtcwake-log		$RPM_BUILD_ROOT/usr/bin/rtcwake-log
+%{__install} -D -m 0755 rtcwake-screen-log	$RPM_BUILD_ROOT/usr/bin/rtcwake-screen-log
 %{__install} -D -m 0755 process-pwr_log.py	$RPM_BUILD_ROOT/usr/bin/process-pwr_log.py
 
 
@@ -41,6 +37,8 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root,-)
 /usr/bin/olpc-pwr-log
 /usr/bin/olpc-solar-log
+/usr/bin/rtcwake-log
+/usr/bin/rtcwake-screen-log
 /usr/bin/process-pwr_log.py
 
 %changelog
