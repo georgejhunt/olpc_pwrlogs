@@ -3,7 +3,7 @@
 # Power loging script 
 # Released under GPLv3
 
-VERSION="0.2.0"
+VERSION="2.0.0"
 FDATE=`date "+%y%m%d-%H%M%S"`
 HOST=`hostname -s`
 B_INFO=/sys/class/power_supply/olpc-battery
