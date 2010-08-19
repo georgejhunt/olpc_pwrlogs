@@ -3,7 +3,7 @@
 # Power loging script 
 # Released under GPLv3
 
-VERSION="2.0.0"
+VERSION="2.0.1"
 FDATE=`date "+%y%m%d-%H%M%S"`
 HOST=`hostname -s`
 B_INFO=/sys/class/power_supply/olpc-battery
@@ -68,14 +68,14 @@ then
 	ACR_PROP="accum_current"
 fi
 
-if [ -e /bootpart/boot/olpc_build ]
-then
-	BUILD=$(< /bootpart/boot/olpc_build )
-fi
-
 if [ -e /boot/olpc_build ]
 then
 	BUILD=$(< /boot/olpc_build )
+fi
+
+if [ -e /bootpart/boot/olpc_build ]
+then
+	BUILD=$(< /bootpart/boot/olpc_build )
 fi
 
 if [ -e $B_INFO/eeprom ]
