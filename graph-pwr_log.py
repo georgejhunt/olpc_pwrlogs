@@ -82,6 +82,8 @@ class PwrLogfile:
 		result = [0.,0.,0.,0.,0.,0.,0.,0.]
 	        result[self.Th]      = (converted[self.SEC] - self.Tz) / 3600
         	result[self.Deltat]  = converted[self.SEC] - converted_prev[self.SEC]
+		if result[self.Deltat] == 0:
+			return (result,1)
 	        result[self.Iavg]    = (converted[self.ACR] - converted_prev[self.ACR]) / (result[self.Deltat] / 3600)
 	        result[self.NetACR]  = converted[self.ACR] - self.ACRz
 	        result[self.Vavg]    = (converted[self.Vb] + converted_prev[self.Vb]) / 2	
@@ -92,7 +94,7 @@ class PwrLogfile:
 		else:
 			result[self.Wavg] = 0.
 
-		return result
+		return (result,0)
 
 	def read_file(self,filename):
 		data = []
@@ -132,7 +134,7 @@ class PwrLogfile:
 		converted_prev[self.SEC] = self.Tz-1
 		
 		# Process the first line with my fabricated previous data
-		results = self.process_data(converted, converted_prev)
+		results,error = self.process_data(converted, converted_prev)
 		self.Wh_sum = results[self.Wh]
 		# Start real previous data
 		converted_prev = converted[:]
@@ -146,7 +148,9 @@ class PwrLogfile:
 				continue
 			try:
 				converted = self.convert_data(row)
-				results = self.process_data(converted, converted_prev)
+				results,error = self.process_data(converted, converted_prev)
+				if error:
+					continue
 				self.Wh_sum = results[self.Wh]
 				converted_prev = converted[:]
 				converted.extend(results)

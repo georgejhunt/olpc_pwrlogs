@@ -83,12 +83,15 @@ def process_data(line_no):
 	result[Line]	= line_no
 	result[Th] 	= (converted[SEC] - Tz) / 3600	
 	result[Deltat] 	= converted[SEC] - converted_prev[SEC]
+	if result[Deltat] == 0:
+		return False
 	result[Iavg] 	= (converted[ACR] - converted_prev[ACR]) / (result[Deltat] / 3600)
 	result[NetACR]	= converted[ACR] - ACRz
 	result[Vavg]	= (converted[Vb] + converted_prev[Vb]) / 2
 	result[Watts]	= result[Vavg] * result[Iavg] / 1000
 	result[Wh]	= result[Wh] + (result[Watts] * result[Deltat] / 3600) 
 	result[DeltaTb] = converted[Tb] - Tbz 
+	return True
 
 def pretty_print(data):
 	for each in data:
@@ -270,7 +273,8 @@ for filename in filenames:
 		if not row:
 			continue
 		if not (convert_data(filename,kern_api)): print "line ", reader.line_num
-		process_data(reader.line_num)
+		if not process_data(reader.line_num):
+			continue
 		if result[Watts] > maxW and (round(result[Watts],3) != 0.0) :
 			maxW = result[Watts]
 		if (result[Watts] < minW) and (round(result[Watts],3) != 0.0):
