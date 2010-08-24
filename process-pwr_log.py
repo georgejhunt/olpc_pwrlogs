@@ -212,7 +212,6 @@ for filename in filenames:
 		try:
 			if row[0].startswith('KERNAPI:'):
 				kern_api = int((row[0].split(':')[1]).strip())
-				print kern_api
 		except:
 			kern_api = 0
 		try:
