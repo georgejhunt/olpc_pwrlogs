@@ -30,6 +30,7 @@ Vavg	= 5
 Watts	= 6
 Wh	= 7
 DeltaTb = 8
+DeltaACR = 9
 
 # 6.5uV / .015 mOhm sense resistor / 1000 = raw ACR -> ACR in mAh 
 ACR2mAh = 6.25 / .015 / 1000
@@ -84,14 +85,21 @@ def process_data(line_no):
 	result[Th] 	= (converted[SEC] - Tz) / 3600	
 	result[Deltat] 	= converted[SEC] - converted_prev[SEC]
 	if result[Deltat] == 0:
-		return False
-	result[Iavg] 	= (converted[ACR] - converted_prev[ACR]) / (result[Deltat] / 3600)
+		# Keep /0 from happening
+		result[Deltat] = 1.0
+	result[DeltaACR] = (converted[ACR] - converted_prev[ACR])
+	result[Iavg] 	= result[DeltaACR] / (result[Deltat] / 3600)
 	result[NetACR]	= converted[ACR] - ACRz
 	result[Vavg]	= (converted[Vb] + converted_prev[Vb]) / 2
 	result[Watts]	= result[Vavg] * result[Iavg] / 1000
 	result[Wh]	= result[Wh] + (result[Watts] * result[Deltat] / 3600) 
 	result[DeltaTb] = converted[Tb] - Tbz 
-	return True
+	# Small number for these values give high error rates
+	# we want to skip the calc interval in these cases
+	if abs(result[Deltat]) < 2 or abs(result[DeltaACR]) < .5:
+		return False
+	else:
+		return True
 
 def pretty_print(data):
 	for each in data:
@@ -120,9 +128,6 @@ def printbuild(build,seperator):
 	print '%10s%c' % (build,seperator),  
 	
 # Eeek. Globals.  Bad Richard.
-converted 	= [0.,0.,0.,0.,0.,0.,0.]
-converted_prev 	= [0.,0.,0.,0.,0.,0.,0.]
-result 		= [0,0.,0.,0.,0.,0.,0.,0.,0.] 
 Tz = 0.0
 ACRz = 0.0
 Tbz  = 0.0
@@ -172,7 +177,7 @@ for filename in filenames:
 
 	converted 	= [0.,0.,0.,0.,0.,0.,0.]
 	converted_prev 	= [0.,0.,0.,0.,0.,0.,0.]
-	result 		= [0,0.,0.,0.,0.,0.,0.,0.,0.] 
+	result 		= [0,0.,0.,0.,0.,0.,0.,0.,0.,0.] 
 	build_no	= 'Unknown'
 	bat_ser		= 'None'
 	lap_ser		= 'None'
@@ -273,6 +278,7 @@ for filename in filenames:
 			continue
 		if not (convert_data(filename,kern_api)): print "line ", reader.line_num
 		if not process_data(reader.line_num):
+			#print result[Line],result[Deltat],result[DeltaACR]
 			continue
 		if result[Watts] > maxW and (round(result[Watts],3) != 0.0) :
 			maxW = result[Watts]

@@ -83,8 +83,10 @@ class PwrLogfile:
 	        result[self.Th]      = (converted[self.SEC] - self.Tz) / 3600
         	result[self.Deltat]  = converted[self.SEC] - converted_prev[self.SEC]
 		if result[self.Deltat] == 0:
-			return (result,1)
-	        result[self.Iavg]    = (converted[self.ACR] - converted_prev[self.ACR]) / (result[self.Deltat] / 3600)
+			#avoid the /0 error
+			result[self.Deltat] = 1.0;
+		DeltaACR = (converted[self.ACR] - converted_prev[self.ACR]) 
+	        result[self.Iavg]    = DeltaACR / (result[self.Deltat] / 3600)
 	        result[self.NetACR]  = converted[self.ACR] - self.ACRz
 	        result[self.Vavg]    = (converted[self.Vb] + converted_prev[self.Vb]) / 2	
         	result[self.Watts]   = result[self.Vavg] * (result[self.Iavg] / 1000)
@@ -93,8 +95,13 @@ class PwrLogfile:
 			result[self.Wavg]    = result[self.Wh] / result[self.Th]
 		else:
 			result[self.Wavg] = 0.
-
-		return (result,0)
+		
+		# If either of these are small then we want to skip to the next reading
+		# because of the error associated with small values
+		if abs(result[self.Deltat]) < 2 or abs(DeltaACR) < .5:
+			return (result,1)
+		else:
+			return (result,0)
 
 	def read_file(self,filename):
 		data = []
