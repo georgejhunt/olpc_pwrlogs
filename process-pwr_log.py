@@ -52,8 +52,9 @@ def convert_data(filename,api):
 		# Batt Temp in C
 		converted[Tb] = float(row[Tb])/100
 	except:
-		print "Convert Error: %s" % filename
-		print row
+		if not quiet:
+			print "Convert Error: %s" % filename
+			print row
 		return False
 
 	try:
@@ -96,7 +97,7 @@ def process_data(line_no):
 	result[DeltaTb] = converted[Tb] - Tbz 
 	# Small number for these values give high error rates
 	# we want to skip the calc interval in these cases
-	if abs(result[Deltat]) < 2 or abs(result[DeltaACR]) < .5:
+	if abs(result[Deltat]) < min_sample_interval or abs(result[DeltaACR]) < .5:
 		return False
 	else:
 		return True
@@ -126,7 +127,28 @@ def printfname(name,seperator,size=0):
 
 def printbuild(build,seperator):
 	print '%10s%c' % (build,seperator),  
+
+def show_summary(summary):
+	if showfile:
+		printfname(filename,summary_seperator)
+
+	if sersort:
+		print '%11s%c' % (lap_ser,summary_seperator) ,
+
+	if batsort:
+		printfname(bat_ser,summary_seperator) ,
 	
+	if showcomment:
+		printfname(comment,summary_seperator,size=12) ,
+
+	if showxo:
+		printfname(xo_ver,summary_seperator)
+	else:
+		printfname(filename,summary_seperator)
+	
+	printbuild(build_no,summary_seperator), 
+	pretty_print(summary)
+
 # Eeek. Globals.  Bad Richard.
 Tz = 0.0
 ACRz = 0.0
@@ -137,9 +159,13 @@ showfile = 0
 showcomment = 0
 showxo = 0
 summary_seperator = ','
+min_sample_interval = 40
+positive = 0
+negative = 0
+quiet = 1
 
 try:
-	opts, args = getopt.getopt(sys.argv[1:], "hbsfTcx", ["batsort", "help", "sersort", "showfile", "tabs", "comment","xo_ver"])
+	opts, args = getopt.getopt(sys.argv[1:], "hbsfTcxpnqz", ["batsort", "help", "sersort", "showfile", "tabs", "comment","xo_ver","positive","negative", "quiet", "ztest"])
 except getopt.GetoptError, err:
 	# print help information and exit:
 	print str(err) # will print something like "option -a not recognized"
@@ -164,6 +190,15 @@ for o, a in opts:
 		showcomment = 1
 	elif o in ("-x", "--xo_ver"):
 		showxo	= 1
+	elif o in ("-p", "--positive"):
+		positive = 1
+	elif o in ("-n", "--negative"):
+		negative = 1
+	elif o in ("-q", "--quiet"):
+		quiet = 1
+	elif o in ("-z","--ztest"):
+		print a
+		sys.exit(1)
 
 # Summary header
 
@@ -188,45 +223,49 @@ for filename in filenames:
 	output_filename = "processed-"+ os.path.splitext(filename)[0] + ".csv"
 	writer = csv.writer(open(output_filename, "wb"))
 	reader = csv.reader(open(filename,"rb"))
-	for row in reader:
-		writer.writerow(row)
-		if not row:
-			continue
-		try:
-			if row[0].startswith('BUILD:'):
-				build_no = (row[0].split(':')[1]).strip()[:6]
-		except:
-			build_no = 'Err'
-		try:
-			if row[0].startswith('BATSER:'):
-				bat_ser = row[0].split(':')[1]
-		except:
-			bat_ser = 'Err'
+	try:
+		for row in reader:
+			writer.writerow(row)
+			if not row:
+				continue
+			try:
+				if row[0].startswith('BUILD:'):
+					build_no = (row[0].split(':')[1]).strip()[:6]
+			except:
+				build_no = 'Err'
+			try:
+				if row[0].startswith('BATSER:'):
+					bat_ser = row[0].split(':')[1]
+			except:
+				bat_ser = 'Err'
 
-		try:
-			if row[0].startswith('SERNUM:'):
-				lap_ser = row[0].split(':')[1]
-		except:
-			lap_ser = 'Err'
-		
-		try:
-			if row[0].startswith('XOVER:'):
-				xo_ver = (row[0].split(':')[1]).strip()
-		except:
-			xo_ver ='Err'
-		try:
-			if row[0].startswith('KERNAPI:'):
-				kern_api = int((row[0].split(':')[1]).strip())
-		except:
-			kern_api = 0
-		try:
-			if row[0].startswith('COMMENT:'):
-				comment = row[0].split(':')[1].strip()
-		except:
-			lap_ser = 'Err'
+			try:
+				if row[0].startswith('SERNUM:'):
+					lap_ser = row[0].split(':')[1]
+			except:
+				lap_ser = 'Err'
+			
+			try:
+				if row[0].startswith('XOVER:'):
+					xo_ver = (row[0].split(':')[1]).strip()
+			except:
+				xo_ver ='Err'
+			try:
+				if row[0].startswith('KERNAPI:'):
+					kern_api = int((row[0].split(':')[1]).strip())
+			except:
+				kern_api = 0
+			try:
+				if row[0].startswith('COMMENT:'):
+					comment = row[0].split(':')[1].strip()
+			except:
+				lap_ser = 'Err'
 
-		if row[0] == '<StartData>':	
-			break
+			if row[0] == '<StartData>':	
+				break
+	except:
+		print "Read Error in: %s" % (filename) 
+		continue 	
 	# Header 
 	
 	if kern_api == 0:
@@ -235,16 +274,21 @@ for filename in filenames:
 		else:
 			kern_api = 1
 
+	try:
+		row = reader.next()
+	except:
+		if not quiet:
+			print "Err: %s line %d " % (filename,reader.line_num)
+		continue
+	if not (convert_data(filename,kern_api)):
+		if not quiet: 
+			print "1-line ",reader.line_num
+		continue
+
 	header = []
 	for each in ['LineNo','Net T(hours)','I Avg(mA)','Net ACR(mA)','Delta T(sec)','V Avg','Watts','Net Wh','DeltaTb']:
 		header.append("%12s" % each)
 	writer.writerow(header)
-	try:
-		row = reader.next()
-	except:
-		print "Err: %s line %d " % (filename,reader.line_num)
-		continue
-	if not (convert_data(filename,kern_api)): print "line ",reader.line_num
 
 	# Starting point for relative measuements
 	Tz = converted[SEC]
@@ -276,7 +320,11 @@ for filename in filenames:
 	for row in reader:
 		if not row:
 			continue
-		if not (convert_data(filename,kern_api)): print "line ", reader.line_num
+		if not (convert_data(filename,kern_api)): 
+			if not quiet:
+				print "line ", reader.line_num
+			else:
+				continue	
 		if not process_data(reader.line_num):
 			#print result[Line],result[Deltat],result[DeltaACR]
 			continue
@@ -312,28 +360,18 @@ for filename in filenames:
 	summary.append(maxTb)
 	summary.append(maxTb_rise)
 	summary.append(Vz)
+
 	if result[NetACR] != 0:
 		summary.append( (converted[SEC] - Tz) / result[NetACR] )
 	else:
-		print "Err: %s : NetACR = 0? " % filename 
+		if not quiet:
+			print "Err: %s : NetACR = 0? " % filename
 
-	if showfile:
-		printfname(filename,summary_seperator)
-
-	if sersort:
-		print '%11s%c' % (lap_ser,summary_seperator) ,
-
-	if batsort:
-		printfname(bat_ser,summary_seperator) ,
-	
-	if showcomment:
-		printfname(comment,summary_seperator,size=12) ,
-
-	if showxo:
-		printfname(xo_ver,summary_seperator)
-	else:
-		printfname(filename,summary_seperator)
-	
-	printbuild(build_no,summary_seperator),  
-	pretty_print(summary)
+	if positive or negative:
+		if positive and result[NetACR] > 0:
+			show_summary(summary)
+		if negative and result[NetACR] < 0:
+			show_summary(summary)	
+	else:	
+		show_summary(summary)
 
