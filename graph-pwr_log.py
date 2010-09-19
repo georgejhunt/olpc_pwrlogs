@@ -8,13 +8,25 @@
 import sys
 import csv
 import os
-import getopt
 import traceback
 from numpy import *
 from matplotlib import mlab
 from matplotlib.ticker import MultipleLocator
 from pylab import figure, show
 import matplotlib.pyplot as plt
+import argparse
+
+class pwr_trace:
+	def __init__(self):
+
+		self.header = {}
+
+		self.Tz	     	= 0.
+		self.ACRz	= 0.
+		self.Wh_sum	= 0.
+
+		# Small arrry for a place holder will will replace this once we have built the data list
+		self.darray	= zeros(3)
 
 class PwrLogfile:
 	def __init__(self):
@@ -45,6 +57,9 @@ class PwrLogfile:
 
 		# Small arrry for a place holder will will replace this once we have built the data list
 		self.darray	= zeros(3)	
+		self.min_sample_interval = 20
+		self.charge_limit=0
+		self.enable_charge_limit=False
 
 	def convert_data(self,row):
 		converted = [0.,0.,0.,0.,0.,0.]
@@ -90,6 +105,10 @@ class PwrLogfile:
 	        result[self.NetACR]  = converted[self.ACR] - self.ACRz
 	        result[self.Vavg]    = (converted[self.Vb] + converted_prev[self.Vb]) / 2	
         	result[self.Watts]   = result[self.Vavg] * (result[self.Iavg] / 1000)
+
+		if result[self.Watts] > self.charge_limit and self.enable_charge_limit:
+			result[self.Watts] = self.charge_limit
+
 	        result[self.Wh]      = self.Wh_sum + (result[self.Watts] * result[self.Deltat] / 3600)
 		if result[self.Th] != 0.0:
 			result[self.Wavg]    = result[self.Wh] / result[self.Th]
@@ -98,7 +117,7 @@ class PwrLogfile:
 		
 		# If either of these are small then we want to skip to the next reading
 		# because of the error associated with small values
-		if abs(result[self.Deltat]) < 2 or abs(DeltaACR) < .5:
+		if abs(result[self.Deltat]) < self.min_sample_interval or abs(DeltaACR) < .5:
 			return (result,1)
 		else:
 			return (result,0)
@@ -168,6 +187,13 @@ class PwrLogfile:
 
 		self.darray = rec.fromrecords(data,names='sec,soc,vb,ib,tb,acr,th,iavg,netacr,deltat,vavg,watts,wh,wavg')
 
+	def set_min_sample_interval(self,interval):
+		self.min_sample_interval=interval
+
+	def set_charge_limit(self,limit):
+		self.enable_charge_limit=True
+		self.charge_limit=limit
+
 def histo():
 	filenames = sys.argv[1:]
 	
@@ -201,7 +227,7 @@ def histo():
  
 	show()
 
-def process_logs(filenames):
+def process_logs(filenames,opt):
 	# scatter plots need lists of numbers
 	netacrs = []
 	runtimes = []
@@ -209,6 +235,10 @@ def process_logs(filenames):
 	wavgs	= []
 	pl = PwrLogfile()
 	
+	pl.set_min_sample_interval(opt.compress)
+	if hasattr(opt,"chg_limit"):
+		pl.set_charge_limit(opt.chg_limit)
+
 #	fig = figure()
 #	ax = fig.add_subplot(111)
 
@@ -222,13 +252,17 @@ def process_logs(filenames):
 	ax4 = fig4.add_subplot(211)
 	ax5 = fig4.add_subplot(212)
 
-	fig5 = figure()
-	ax6 = fig5.add_subplot(111)
+#	fig5 = figure()
+#	ax6 = fig5.add_subplot(111)
 
 
 	SKIP = 2	
 	for filename in filenames:
 		pl.read_file(filename)
+
+		if pl.darray.netacr[-1] > 0:
+			continue
+
 #		ax.set_title('Runtime vs Avg Power' )
 #		ax.plot(pl.darray.th[SKIP:],pl.darray.wavg[SKIP:])
 
@@ -240,8 +274,8 @@ def process_logs(filenames):
 		ax5.set_title('Runtime vs Current' )
 		ax5.plot(pl.darray.th[SKIP:],pl.darray.ib[SKIP:])
 
-		ax6.set_title('Runtime vs Batt Temp' )
-		ax6.plot(pl.darray.th[SKIP:],pl.darray.tb[SKIP:])
+#		ax6.set_title('Runtime vs Batt Temp' )
+#		ax6.plot(pl.darray.th[SKIP:],pl.darray.tb[SKIP:])
 
 		runtimes.append(pl.darray.th[-1])
 		netacrs.append(pl.darray.netacr[-1])
@@ -259,12 +293,21 @@ def process_logs(filenames):
 #	plt.hist(wavgs,10, normed=False, facecolor='green')	
 
 	show()
-		
+
 
 def main():
- 	filenames = sys.argv[1:]
+# 	filenames = sys.argv[1:]
 
-	process_logs(filenames)
+	parser = argparse.ArgumentParser(description='Make power log graph')
+	parser.add_argument('filenames', nargs='+', help='files to process')
+	parser.add_argument('--compress', action='store',type=int,default=60,
+		help='Minumum number of elapsed seconds for each datapoint')
+	parser.add_argument('--chg_limit',type=float,
+		help='Limit charge wattage')
+
+	args = parser.parse_args()
+
+	process_logs(args.filenames,args)
 
 main()
 
