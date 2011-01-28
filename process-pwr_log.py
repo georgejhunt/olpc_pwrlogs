@@ -89,18 +89,19 @@ def process_data(line_no):
 		# Keep /0 from happening
 		result[Deltat] = 1.0
 	result[DeltaACR] = (converted[ACR] - converted_prev[ACR])
+
+	# Small number for these values give high error rates
+	# we want to skip the calc interval in these cases
+	if abs(result[Deltat]) < min_sample_interval or abs(result[DeltaACR]) < .5:
+		return False
+
 	result[Iavg] 	= result[DeltaACR] / (result[Deltat] / 3600)
 	result[NetACR]	= converted[ACR] - ACRz
 	result[Vavg]	= (converted[Vb] + converted_prev[Vb]) / 2
 	result[Watts]	= result[Vavg] * result[Iavg] / 1000
 	result[Wh]	= result[Wh] + (result[Watts] * result[Deltat] / 3600) 
 	result[DeltaTb] = converted[Tb] - Tbz 
-	# Small number for these values give high error rates
-	# we want to skip the calc interval in these cases
-	if abs(result[Deltat]) < min_sample_interval or abs(result[DeltaACR]) < .5:
-		return False
-	else:
-		return True
+	return True
 
 def pretty_print(data):
 	for each in data:
