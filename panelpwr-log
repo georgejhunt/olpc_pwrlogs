@@ -8,7 +8,7 @@
 # to use this you either have to sudo chmod o+w /sys/power/ec or you 
 # have to run as root.
 
-VERSION="0.1.7"
+VERSION="0.1.9"
 FDATE=`date "+%y%m%d-%H%M%S"`
 HOST=`hostname -s`
 B_INFO=/sys/class/power_supply/olpc-battery
@@ -112,9 +112,27 @@ ec_wakeup() {
 	printf "36:0 %x %x %x %x \n" $byte3 $byte2 $byte1 $byte0  > /sys/power/ec
 }
 
+# Without powerd the all the wakups get disabled so fix them back up
+# However we don't want the 1% battery tick to wake us up because that 
+# interferes with our stay in suspend for $DELAY time.
 ec_unmask_wakups() {
 	test $XO_VERSION = "1" && return
-	printf "1b:0 ff \n"  > /sys/power/ec
+	printf "1b:0 fb \n"  > /sys/power/ec
+}
+
+# This is broken with current kernels in that it only 
+# returns the 1st nibble of the byte however its still an esitimate of the Vin
+# The accuracy however is only really good for relative measurements since 
+# the scale seems to change 
+# TODO: Plot this vs known Vin across multiple XO's under different loads.
+
+ec_get_Vin() {	
+	if [[ $XO_VERSION = "1" ]]; then
+		echo "0"
+		return
+	fi
+	printf "42:1 \n" > /sys/power/ec
+	echo $(< /sys/power/ec )
 }
 
 echo "Starting log $LOGFILE"
@@ -229,44 +247,53 @@ function take_reading {
 	STAT=$(< $B_INFO/status)
 
 	PREV_MAh=${MAh-0}
+	PREV_ACR=${ACR-0}
 	ACR=$(get_acr)
-	ACR_DIFF=$(( ${ACR-0}-${START_ACR-0} ))
+	ACR_NET=$(( ${ACR-0}-${START_ACR-0} ))
+	ACR_DIFF=$(( ${ACR} - ${PREV_ACR} ))
 	if [ $XO_VERSION == "1" ]
 	then
-		MAh=$(( ($ACR_DIFF * 625) / 1500 ))
+		MAh_NET=$(( ($ACR_NET * 625) / 1500 ))
+		MAh_DIFF=$(( ($ACR_DIFF * 625) / 1500 ))
 	else
-		MAh=$(( ${ACR_DIFF} / 1000 ))
+		MAh_NET=$(( ${ACR_NET} / 1000 ))
+		MAh_DIFF=$(( ($ACR_DIFF+500) / 1000 ))
 	fi
 	PREV_SEC=$THIS_SEC
 	THIS_SEC=$(get_seconds)
 	SECS=$(( ${THIS_SEC} - ${PREV_SEC} ))
-	MAs_DIFF=$(( (${MAh} - ${PREV_MAh}) * 3600 ))
+	# Prevent the divide by zero error that happens on startup
+	test $SECS = "0" && SECS=1
+	MAs_DIFF=$(( $MAh_DIFF * 3600 ))
 	NET_MINUTES=$(( ( ${THIS_SEC} - ${START_TIME} ) / 60 )) 
+	VIN=$(ec_get_Vin)
 	W_SAMPLE=$(( ((${MAs_DIFF}/${SECS}) * ((${VOLT}+500)/1000) ) / 1000 ))
-	echo "${THIS_SEC},$CAPLEVEL,$VOLT,$CURR,$TEMP,$ACR,$STAT,$MAh,$NET_MINUTES,$W_SAMPLE" | tee -a $LOGFILE
+
+#	echo $MAh_DIFF,$MAs_DIFF,$SECS,$(( (${VOLT}+500)/1000 )) 
+
+	echo "${THIS_SEC},$CAPLEVEL,$VOLT,$CURR,$TEMP,$ACR,$STAT,$MAh_NET,$NET_MINUTES,$VIN,$W_SAMPLE" | tee -a $LOGFILE
 }
 
 START_ACR=$(get_acr)
 START_TIME=$(get_seconds)
+THIS_SEC=$START_TIME
 
 FULL_EDGE=0
 PREV_MAh=0
-PREV_SEC=0
-THIS_SEC=0
 MAh=0
 
 # When charging the batt V changes rapidly.  Take some startup samples so that first long delay sample has a more accurate Vb.
 
 take_reading
-ec_wakeup 10000
-sleep 10
+ec_wakeup 3000
+sleep 3
 
 # Set the backlight to off
 sudo su -c "echo 0 > /sys/class/backlight/dcon-bl/brightness"
 
 take_reading
-ec_wakeup 10000
-sleep 10
+ec_wakeup 3000
+sleep 3
 
 while true
 do
