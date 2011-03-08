@@ -8,7 +8,7 @@
 # to use this you either have to sudo chmod o+w /sys/power/ec or you 
 # have to run as root.
 
-VERSION="0.1.10"
+VERSION="0.1.11"
 FDATE=`date "+%y%m%d-%H%M%S"`
 HOST=`hostname -s`
 B_INFO=/sys/class/power_supply/olpc-battery
@@ -120,7 +120,7 @@ ec_wakeup() {
 # wake us.
 ec_unmask_wakups() {
 	test $XO_VERSION = "1" && return
-	printf "1b:0 bb \n"  > /sys/power/ec
+	printf "1b:0 b9 \n"  > /sys/power/ec
 }
 
 # This is broken with current kernels in that it only 
