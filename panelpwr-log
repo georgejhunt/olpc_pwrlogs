@@ -8,7 +8,7 @@
 # to use this you either have to sudo chmod o+w /sys/power/ec or you 
 # have to run as root.
 
-VERSION="0.1.9"
+VERSION="0.1.10"
 FDATE=`date "+%y%m%d-%H%M%S"`
 HOST=`hostname -s`
 B_INFO=/sys/class/power_supply/olpc-battery
@@ -115,9 +115,12 @@ ec_wakeup() {
 # Without powerd the all the wakups get disabled so fix them back up
 # However we don't want the 1% battery tick to wake us up because that 
 # interferes with our stay in suspend for $DELAY time.
+# Also ignore external power events since if the input power is really 
+# low the externa power present signal will oscillate and constantly
+# wake us.
 ec_unmask_wakups() {
 	test $XO_VERSION = "1" && return
-	printf "1b:0 fb \n"  > /sys/power/ec
+	printf "1b:0 bb \n"  > /sys/power/ec
 }
 
 # This is broken with current kernels in that it only 
