@@ -57,8 +57,8 @@ class PwrLogfile:
 
 		# Small arrry for a place holder will will replace this once we have built the data list
 		self.darray	= zeros(3)	
-		self.min_sample_interval = 20
-		self.charge_limit=0
+		self.min_sample_interval = 0
+		self.charge_limit=30
 		self.enable_charge_limit=False
 
 	def convert_data(self,row):
@@ -101,6 +101,12 @@ class PwrLogfile:
 			#avoid the /0 error
 			result[self.Deltat] = 1.0;
 		DeltaACR = (converted[self.ACR] - converted_prev[self.ACR]) 
+
+		# If either of these are small then we want to skip to the next reading
+		# because of the error associated with small values
+		if abs(result[self.Deltat]) < self.min_sample_interval or abs(DeltaACR) < .5:
+			return (result,1)
+
 	        result[self.Iavg]    = DeltaACR / (result[self.Deltat] / 3600)
 	        result[self.NetACR]  = converted[self.ACR] - self.ACRz
 	        result[self.Vavg]    = (converted[self.Vb] + converted_prev[self.Vb]) / 2	
@@ -115,12 +121,7 @@ class PwrLogfile:
 		else:
 			result[self.Wavg] = 0.
 		
-		# If either of these are small then we want to skip to the next reading
-		# because of the error associated with small values
-		if abs(result[self.Deltat]) < self.min_sample_interval or abs(DeltaACR) < .5:
-			return (result,1)
-		else:
-			return (result,0)
+		return (result,0)
 
 	def read_file(self,filename):
 		data = []
