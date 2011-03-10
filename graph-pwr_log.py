@@ -150,7 +150,7 @@ class PwrLogfile:
 			converted = self.convert_data(reader.next())
 			converted_prev = converted[:]
 		except:
-			print 'Coversion error in %s line: %d' % (filename,reader.line_num) 
+			print 'Conversion error in %s line: %d' % (filename,reader.line_num)
 			traceback.print_exc(file=sys.stdout)
 
 		self.Tz   = converted_prev[self.SEC]
@@ -183,7 +183,7 @@ class PwrLogfile:
 				converted.extend(results)
 				data.append(converted)
 			except:
-				print 'Coversion error in %s line: %d' % (filename,reader.line_num) 
+				print 'Conversion error in %s line: %d' % (filename,reader.line_num)
 		# Add the various init things to the header info for all the net diff calcs
 
 		self.darray = rec.fromrecords(data,names='sec,soc,vb,ib,tb,acr,th,iavg,netacr,deltat,vavg,watts,wh,wavg')
