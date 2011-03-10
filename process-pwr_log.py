@@ -11,6 +11,9 @@ import sys
 import csv
 import os
 import getopt
+from datetime import datetime 
+from dateutil.parser import *
+import traceback
 
 # Conversion defs
 SEC 	= 0
@@ -21,16 +24,16 @@ Tb 	= 4
 ACR 	= 5
 
 # Results defs
-Line	= 0
-Th 	= 1
-Iavg 	= 2
-NetACR	= 3
-Deltat	= 4
-Vavg	= 5
-Watts	= 6
-Wh	= 7
-DeltaTb = 8
-DeltaACR = 9
+#Line	= 0
+#Th 	= 1
+#Iavg 	= 2
+#NetACR	= 3
+#Deltat	= 4
+#Vavg	= 5
+#Watts	= 6
+#Wh	= 7
+#DeltaTb = 8
+#DeltaACR = 9
 
 # 6.5uV / .015 mOhm sense resistor / 1000 = raw ACR -> ACR in mAh 
 ACR2mAh = 6.25 / .015 / 1000
@@ -82,25 +85,25 @@ def convert_data(filename,api):
 	return True
 			
 def process_data(line_no):
-	result[Line]	= line_no
-	result[Th] 	= (converted[SEC] - Tz) / 3600	
-	result[Deltat] 	= converted[SEC] - converted_prev[SEC]
-	if result[Deltat] == 0:
+	result['Line']		= line_no
+	result['Th'] 		= (converted[SEC] - Tz) / 3600	
+	result['Deltat']	= converted[SEC] - converted_prev[SEC]
+	if result['Deltat'] == 0:
 		# Keep /0 from happening
-		result[Deltat] = 1.0
-	result[DeltaACR] = (converted[ACR] - converted_prev[ACR])
+		result['Deltat'] = 1.0
+	result['DeltaACR'] = (converted[ACR] - converted_prev[ACR])
 
 	# Small number for these values give high error rates
 	# we want to skip the calc interval in these cases
-	if abs(result[Deltat]) < min_sample_interval or abs(result[DeltaACR]) < .5:
+	if abs(result['Deltat']) < min_sample_interval or abs(result['DeltaACR']) < .5:
 		return False
 
-	result[Iavg] 	= result[DeltaACR] / (result[Deltat] / 3600)
-	result[NetACR]	= converted[ACR] - ACRz
-	result[Vavg]	= (converted[Vb] + converted_prev[Vb]) / 2
-	result[Watts]	= result[Vavg] * result[Iavg] / 1000
-	result[Wh]	= result[Wh] + (result[Watts] * result[Deltat] / 3600) 
-	result[DeltaTb] = converted[Tb] - Tbz 
+	result['Iavg'] 	= result['DeltaACR'] / (result['Deltat'] / 3600)
+	result['NetACR']	= converted[ACR] - ACRz
+	result['Vavg']	= (converted[Vb] + converted_prev[Vb]) / 2
+	result['Watts']	= result['Vavg'] * result['Iavg'] / 1000
+	result['Wh']	= result['Wh'] + (result['Watts'] * result['Deltat'] / 3600) 
+	result['DeltaTb'] = converted[Tb] - Tbz 
 	return True
 
 def pretty_print(data):
@@ -110,9 +113,9 @@ def pretty_print(data):
 
 def pretty_out(data):
 	retval = []
-	retval.append('%12d' % data[0])
-	for each in data[1:]:
-		retval.append('%12.3f' % each)
+	retval.append('%12d' % data['Line'])
+	for each in result_items[1:]:
+		retval.append('%12.3f' % data[each])
 	return retval
 
 def usage():
@@ -138,15 +141,18 @@ def show_summary(summary):
 
 	if batsort:
 		printfname(bat_ser,summary_seperator) ,
-	
+
 	if showcomment:
 		printfname(comment,summary_seperator,size=12) ,
+
+	if datesort:
+		printfname(rundate_str,summary_seperator,size=12)
 
 	if showxo:
 		printfname(xo_ver,summary_seperator)
 	else:
 		printfname(filename,summary_seperator)
-	
+
 	printbuild(build_no,summary_seperator), 
 	pretty_print(summary)
 
@@ -164,9 +170,10 @@ min_sample_interval = 60
 positive = 0
 negative = 0
 quiet = 1
+datesort = 0
 
 try:
-	opts, args = getopt.getopt(sys.argv[1:], "hbsfTcxpnqz", ["batsort", "help", "sersort", "showfile", "tabs", "comment","xo_ver","positive","negative", "quiet", "ztest"])
+	opts, args = getopt.getopt(sys.argv[1:], "hbsfTcxpnqdz", ["batsort", "help", "sersort", "showfile", "tabs", "comment","xo_ver","positive","negative", "quiet", "datesort", "ztest"])
 except getopt.GetoptError, err:
 	# print help information and exit:
 	print str(err) # will print something like "option -a not recognized"
@@ -197,6 +204,8 @@ for o, a in opts:
 		negative = 1
 	elif o in ("-q", "--quiet"):
 		quiet = 1
+	elif o in ("-d", "--datesort"):
+		datesort = 1
 	elif o in ("-z","--ztest"):
 		print a
 		sys.exit(1)
@@ -208,12 +217,32 @@ printbuild(" Build ",summary_seperator)
 for each in ["Net time","Net ACR","Watthrs","Min W","Max W","Avg W","Crit time","Max temp","Temp rise","StartV","sec/mAh"]:
 	print '%9s%c' % (each,summary_seperator) ,
 print
+# Results defs
+
+# The order of this list is the order of output in the results file.
+# 'Line' is fixed and needs to be item 0 but all others are fungable. 
+result_items = ['Line','Th','Iavg','NetACR','Deltat','Vavg','Watts','Wh','DeltaTb','DeltaACR']
+
+# Init the results_header dict
+result_headers = dict( [(i,'') for i in result_items] )
+
+result_headers['Line']	= 'LineNo'
+result_headers['Th'] 	= 'Net T(hours)'
+result_headers['Iavg'] 	= 'I Avg(mA)'
+result_headers['NetACR'] = 'Net ACR(mA)'
+result_headers['Deltat'] = 'dT(sec)'
+result_headers['Vavg']	= 'V Avg' 
+result_headers['Watts'] = 'Watts'
+result_headers['Wh']	= 'Net Wh'
+result_headers['DeltaTb'] = 'dTb(C)'
+result_headers['DeltaACR'] = 'dACR(mA)'
 
 for filename in filenames:
 
-	converted 	= [0.,0.,0.,0.,0.,0.,0.]
-	converted_prev 	= [0.,0.,0.,0.,0.,0.,0.]
-	result 		= [0,0.,0.,0.,0.,0.,0.,0.,0.,0.] 
+	converted	= [0.,0.,0.,0.,0.,0.]
+	converted_prev 	= converted[:]
+	result 		= dict( [ (i,0.) for i in result_items ] )
+	
 	build_no	= 'Unknown'
 	bat_ser		= 'None'
 	lap_ser		= 'None'
@@ -231,7 +260,7 @@ for filename in filenames:
 				continue
 			try:
 				if row[0].startswith('BUILD:'):
-					build_no = (row[0].split(':')[1]).strip()[:6]
+					build_no = (row[0].split(':')[1]).strip()[:10]
 			except:
 				build_no = 'Err'
 			try:
@@ -261,6 +290,14 @@ for filename in filenames:
 					comment = row[0].split(':')[1].strip()
 			except:
 				lap_ser = 'Err'
+			try:
+				if row[0].startswith('DATE:'):
+					dstring = row[0][(row[0].find(":"))+1:].strip()
+					rundate = parse(dstring)
+					rundate_str = datetime.strftime(rundate,"%Y-%m-%d %H:%M")
+			except:
+				rundate_str = 'Err'
+				traceback.print_exc(file=sys.stdout)
 
 			if row[0] == '<StartData>':	
 				break
@@ -287,8 +324,8 @@ for filename in filenames:
 		continue
 
 	header = []
-	for each in ['LineNo','Net T(hours)','I Avg(mA)','Net ACR(mA)','Delta T(sec)','V Avg','Watts','Net Wh','DeltaTb']:
-		header.append("%12s" % each)
+	for each in result_items:
+		header.append("%12s" % result_headers[each])
 	writer.writerow(header)
 
 	# Starting point for relative measuements
@@ -302,15 +339,15 @@ for filename in filenames:
 	converted_prev[SEC] = Tz-1
 	process_data(reader.line_num)
 	# Fixup the errors from the starting entry
-	result[Deltat] = 0
-	result[Wh] = 0
+	result['Deltat'] = 0
+	result['Wh'] = 0
 	crit_start = 0
 	crit_time  = 0
-	result[DeltaTb] = 0
+	result['DeltaTb'] = 0
 	# Init min & Max.  This really should be initialized to the 
 	# first real value but that does not happen until the 2nd interation
 	# and I feel lazy.  If we ever hit 20W some thing else is wrong anyway
-	# Famous last words. X0-1.5 can hit >20W up it to 50W
+	# Famous last words. X0-1.5 can hit >20W so up this to 50W
 	minW 		= 50.0
 	maxW 		= -50.0
 	maxTb		= -40.0
@@ -329,32 +366,32 @@ for filename in filenames:
 		if not process_data(reader.line_num):
 			#print result[Line],result[Deltat],result[DeltaACR]
 			continue
-		if result[Watts] > maxW and (round(result[Watts],3) != 0.0) :
-			maxW = result[Watts]
-		if (result[Watts] < minW) and (round(result[Watts],3) != 0.0):
-			minW = result[Watts]
-		if (result[Vavg] < 5.75 and crit_start == 0 ):
-			crit_start = result[Th]
+		if result['Watts'] > maxW and (round(result['Watts'],3) != 0.0) :
+			maxW = result['Watts']
+		if (result['Watts'] < minW) and (round(result['Watts'],3) != 0.0):
+			minW = result['Watts']
+		if (result['Vavg'] < 5.75 and crit_start == 0 ):
+			crit_start = result['Th']
 		else:
-			crit_time = (result[Th] - crit_start) * 60
+			crit_time = (result['Th'] - crit_start) * 60
 		if converted[Tb] > maxTb:
 			maxTb = converted[Tb]
 
-		if result[DeltaTb] > maxTb_rise:
-			maxTb_rise = result[DeltaTb]
+		if result['DeltaTb'] > maxTb_rise:
+			maxTb_rise = result['DeltaTb']
 
 		converted_prev = converted[:]
 		writer.writerow(pretty_out(result))
 	# Summary of the run
 	summary = []
-	summary.append(result[Th])
-	summary.append(result[NetACR])
-	summary.append(result[Wh])
+	summary.append(result['Th'])
+	summary.append(result['NetACR'])
+	summary.append(result['Wh'])
 	summary.append(minW)
 	summary.append(maxW)
 
-	if result[Th] != 0.0:
-		summary.append(result[Wh]/result[Th])
+	if result['Th'] != 0.0:
+		summary.append(result['Wh']/result['Th'])
 	else:
 		summary.append(0.0)
 	summary.append(crit_time)
@@ -362,16 +399,16 @@ for filename in filenames:
 	summary.append(maxTb_rise)
 	summary.append(Vz)
 
-	if result[NetACR] != 0:
-		summary.append( (converted[SEC] - Tz) / result[NetACR] )
+	if result['NetACR'] != 0:
+		summary.append( (converted[SEC] - Tz) / result['NetACR'] )
 	else:
 		if not quiet:
 			print "Err: %s : NetACR = 0? " % filename
 
 	if positive or negative:
-		if positive and result[NetACR] > 0:
+		if positive and result['NetACR'] > 0:
 			show_summary(summary)
-		if negative and result[NetACR] < 0:
+		if negative and result['NetACR'] < 0:
 			show_summary(summary)	
 	else:	
 		show_summary(summary)
