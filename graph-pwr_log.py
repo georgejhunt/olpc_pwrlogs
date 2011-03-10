@@ -230,6 +230,12 @@ def histo():
 
 def process_logs(filenames,opt):
 	# scatter plots need lists of numbers
+
+	show_avgpwr = 0
+	show_instpwr = 1
+	show_voltcur = 0
+	dont_show    = 0
+
 	netacrs = []
 	runtimes = []
 	whs	= []
@@ -237,44 +243,56 @@ def process_logs(filenames,opt):
 	pl = PwrLogfile()
 	
 	pl.set_min_sample_interval(opt.compress)
-	if hasattr(opt,"chg_limit"):
-		pl.set_charge_limit(opt.chg_limit)
 
-#	fig = figure()
-#	ax = fig.add_subplot(111)
+# 	Seems broken
+#	if hasattr(opt,"chg_limit"):
+#		pl.set_charge_limit(opt.chg_limit)
 
-#	fig2 = figure()
-#	ax2 = fig2.add_subplot(111)
+	if show_avgpwr:
+		fig = figure()
+		ax = fig.add_subplot(111)
 
-	fig3 = figure()
-	ax3 = fig3.add_subplot(111)
+# Bat current vs SOC.
+	if dont_show:
+		fig2 = figure()
+		ax2 = fig2.add_subplot(111)
 
-	fig4 = figure()
-	ax4 = fig4.add_subplot(211)
-	ax5 = fig4.add_subplot(212)
+	if show_instpwr:
+		fig3 = figure()
+		ax3 = fig3.add_subplot(111)
+		ax3.set_xlabel('Time (Hours)')
+		ax3.set_ylabel('Inst Power (Watts)')
+
+	if show_voltcur:
+		fig4 = figure()
+		ax4 = fig4.add_subplot(211)
+		ax5 = fig4.add_subplot(212)
 
 #	fig5 = figure()
 #	ax6 = fig5.add_subplot(111)
 
 
-	SKIP = 2	
+	SKIP = 1	
 	for filename in filenames:
 		pl.read_file(filename)
 
-		if pl.darray.netacr[-1] > 0:
-			continue
+		if show_avgpwr:
+			ax.set_title('Time vs Avg Power' )
+			ax.plot(pl.darray.th[SKIP:],pl.darray.wavg[SKIP:])
 
-#		ax.set_title('Runtime vs Avg Power' )
-#		ax.plot(pl.darray.th[SKIP:],pl.darray.wavg[SKIP:])
+		if show_instpwr:
+			ax3.set_title('Time vs Power' )
+			ax3.plot(pl.darray.th[SKIP:],pl.darray.watts[SKIP:])
 
-		ax3.set_title('Runtime vs Power' )
-		ax3.plot(pl.darray.th[SKIP:],pl.darray.watts[SKIP:])
-
-		ax4.set_title('Runtime vs Voltage' )
-		ax4.plot(pl.darray.th[SKIP:],pl.darray.vb[SKIP:])
-		ax5.set_title('Runtime vs Current' )
-		ax5.plot(pl.darray.th[SKIP:],pl.darray.ib[SKIP:])
-
+		if show_voltcur:
+			ax4.set_title('Time vs Voltage' )
+			ax4.plot(pl.darray.th[SKIP:],pl.darray.vb[SKIP:])
+			ax5.set_title('Time vs Current' )
+			ax5.plot(pl.darray.th[SKIP:],pl.darray.ib[SKIP:])
+	
+		if dont_show:
+			ax2.plot(pl.darray.soc[SKIP:],pl.darray.ib[SKIP:])
+		
 #		ax6.set_title('Runtime vs Batt Temp' )
 #		ax6.plot(pl.darray.th[SKIP:],pl.darray.tb[SKIP:])
 
