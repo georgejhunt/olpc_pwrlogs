@@ -2,7 +2,7 @@
 
 # Copyright One Laptop Per Child 
 # Released under GPLv2 or later
-# Version 0.0.1
+# Version 0.0.2
 
 
 import sys
@@ -15,6 +15,9 @@ from matplotlib.ticker import MultipleLocator
 from pylab import figure, show
 import matplotlib.pyplot as plt
 import argparse
+from datetime import datetime, date, time
+from dateutil import tz
+from matplotlib.backends.backend_pdf import PdfPages
 
 class pwr_trace:
 	def __init__(self):
@@ -54,12 +57,14 @@ class PwrLogfile:
 		self.Watts   = 5
 		self.Wh      = 6
 		self.Wavg    = 7
+		self.Ttod    = 8
 
 		# Small arrry for a place holder will will replace this once we have built the data list
 		self.darray	= zeros(3)	
 		self.min_sample_interval = 0
 		self.charge_limit=30
 		self.enable_charge_limit=False
+		self.local_tz = tz.tzoffset(None, 11*3600)
 
 	def convert_data(self,row):
 		converted = [0.,0.,0.,0.,0.,0.]
@@ -94,7 +99,10 @@ class PwrLogfile:
 		return converted
 
 	def process_data(self,converted, converted_prev):
-		result = [0.,0.,0.,0.,0.,0.,0.,0.]
+		result = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
+		dt_sample = datetime.fromtimestamp(converted[self.SEC],tz.tzutc())
+		dt_tz = dt_sample.astimezone(self.local_tz).timetuple()
+		result[self.Ttod] = float(dt_tz.tm_hour) + float(dt_tz.tm_min)/60.0 
 	        result[self.Th]      = (converted[self.SEC] - self.Tz) / 3600
         	result[self.Deltat]  = converted[self.SEC] - converted_prev[self.SEC]
 		if result[self.Deltat] == 0:
@@ -186,7 +194,7 @@ class PwrLogfile:
 				print 'Conversion error in %s line: %d' % (filename,reader.line_num)
 		# Add the various init things to the header info for all the net diff calcs
 
-		self.darray = rec.fromrecords(data,names='sec,soc,vb,ib,tb,acr,th,iavg,netacr,deltat,vavg,watts,wh,wavg')
+		self.darray = rec.fromrecords(data,names='sec,soc,vb,ib,tb,acr,th,iavg,netacr,deltat,vavg,watts,wh,wavg,tod')
 
 	def set_min_sample_interval(self,interval):
 		self.min_sample_interval=interval
@@ -234,6 +242,8 @@ def process_logs(filenames,opt):
 	show_avgpwr = 0
 	show_instpwr = 1
 	show_voltcur = 0
+	show_todpwr  = 1
+	save_graphs  = 1
 	dont_show    = 0
 
 	netacrs = []
@@ -241,6 +251,7 @@ def process_logs(filenames,opt):
 	whs	= []
 	wavgs	= []
 	pl = PwrLogfile()
+	figures = []
 	
 	pl.set_min_sample_interval(opt.compress)
 
@@ -248,51 +259,65 @@ def process_logs(filenames,opt):
 #	if hasattr(opt,"chg_limit"):
 #		pl.set_charge_limit(opt.chg_limit)
 
+	if save_graphs:
+		pp = PdfPages('graphs.pdf')
+
 	if show_avgpwr:
 		fig = figure()
 		ax = fig.add_subplot(111)
+		ax.set_title('Avg Power vs Time' )
+		figures.append(fig)
 
 # Bat current vs SOC.
 	if dont_show:
 		fig2 = figure()
 		ax2 = fig2.add_subplot(111)
+		figures.append(fig2)
 
 	if show_instpwr:
 		fig3 = figure()
 		ax3 = fig3.add_subplot(111)
-		ax3.set_xlabel('Time (Hours)')
+		ax3.set_xlabel('Delta Time (Hours)')
 		ax3.set_ylabel('Inst Power (Watts)')
+		ax3.set_title('Power vs Delta Time' )
+		figures.append(fig3)
 
 	if show_voltcur:
 		fig4 = figure()
 		ax4 = fig4.add_subplot(211)
-		ax5 = fig4.add_subplot(212)
+		ax4.set_title('Voltage vs Time' )
+		ax4_2 = fig4.add_subplot(212)
+		ax4_2.set_title('Current vs Time' )
+		figures.append(fig4)
 
-#	fig5 = figure()
-#	ax6 = fig5.add_subplot(111)
+	if show_todpwr:
+		fig5 = figure()
+		ax5 = fig5.add_subplot(111)
+		ax5.set_xlabel('Time of Day (H.M/60)')
+		ax5.set_ylabel('Inst Power (Watts)')
+		ax5.set_title('Power vs Time of day')
+		figures.append(fig5)
 
-
-	SKIP = 1	
+	SKIP = 1
 	for filename in filenames:
 		pl.read_file(filename)
 
 		if show_avgpwr:
-			ax.set_title('Time vs Avg Power' )
 			ax.plot(pl.darray.th[SKIP:],pl.darray.wavg[SKIP:])
 
 		if show_instpwr:
-			ax3.set_title('Time vs Power' )
 			ax3.plot(pl.darray.th[SKIP:],pl.darray.watts[SKIP:])
 
 		if show_voltcur:
-			ax4.set_title('Time vs Voltage' )
 			ax4.plot(pl.darray.th[SKIP:],pl.darray.vb[SKIP:])
-			ax5.set_title('Time vs Current' )
-			ax5.plot(pl.darray.th[SKIP:],pl.darray.ib[SKIP:])
+			ax4_2.plot(pl.darray.th[SKIP:],pl.darray.ib[SKIP:])
 	
 		if dont_show:
 			ax2.plot(pl.darray.soc[SKIP:],pl.darray.ib[SKIP:])
-		
+
+		if show_todpwr:
+			ax5.plot(pl.darray.tod[SKIP:],pl.darray.watts[SKIP:])
+
 #		ax6.set_title('Runtime vs Batt Temp' )
 #		ax6.plot(pl.darray.th[SKIP:],pl.darray.tb[SKIP:])
 
@@ -312,6 +337,10 @@ def process_logs(filenames,opt):
 #	plt.hist(wavgs,10, normed=False, facecolor='green')	
 
 	show()
+
+	if save_graphs:
+		for each in figures: pp.savefig(each)
+		pp.close()
 
 
 def main():
