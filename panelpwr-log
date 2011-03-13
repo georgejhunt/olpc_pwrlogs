@@ -8,7 +8,7 @@
 # to use this you either have to sudo chmod o+w /sys/power/ec or you 
 # have to run as root.
 
-VERSION="0.1.11"
+VERSION="0.1.12"
 FDATE=`date "+%y%m%d-%H%M%S"`
 HOST=`hostname -s`
 B_INFO=/sys/class/power_supply/olpc-battery
@@ -145,7 +145,7 @@ echo "panelpwr_log Ver: $VERSION" > $LOGFILE
 echo -n "HOST: " 	>> $LOGFILE 
 echo $HOST  		>> $LOGFILE 
 echo -n "DATE: " 	>> $LOGFILE 
-echo `date` 		>> $LOGFILE
+echo `date -R` 		>> $LOGFILE
 echo -n "DATESEC: " 	>> $LOGFILE
 echo `date +%s` 	>> $LOGFILE
 echo -n "ECVER: " 	>> $LOGFILE 
