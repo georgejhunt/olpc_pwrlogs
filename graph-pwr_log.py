@@ -1,8 +1,8 @@
 #!/usr/bin/python
 
-# Copyright One Laptop Per Child 
+# Copyright One Laptop Per Child
 # Released under GPLv2 or later
-# Version 0.0.2
+# Version 0.0.3
 
 
 import sys
@@ -16,7 +16,7 @@ from pylab import figure, show
 import matplotlib.pyplot as plt
 import argparse
 from datetime import datetime, date, time
-from dateutil import tz
+from dateutil import tz, parser
 from matplotlib.backends.backend_pdf import PdfPages
 
 class pwr_trace:
@@ -60,11 +60,11 @@ class PwrLogfile:
 		self.Ttod    = 8
 
 		# Small arrry for a place holder will will replace this once we have built the data list
-		self.darray	= zeros(3)	
+		self.darray	= zeros(3)
 		self.min_sample_interval = 0
 		self.charge_limit=30
 		self.enable_charge_limit=False
-		self.local_tz = tz.tzoffset(None, 11*3600)
+		self.local_tz = tz.tzutc()
 
 	def convert_data(self,row):
 		converted = [0.,0.,0.,0.,0.,0.]
@@ -102,13 +102,13 @@ class PwrLogfile:
 		result = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
 		dt_sample = datetime.fromtimestamp(converted[self.SEC],tz.tzutc())
 		dt_tz = dt_sample.astimezone(self.local_tz).timetuple()
-		result[self.Ttod] = float(dt_tz.tm_hour) + float(dt_tz.tm_min)/60.0 
+		result[self.Ttod] = float(dt_tz.tm_hour) + float(dt_tz.tm_min)/60.0
 	        result[self.Th]      = (converted[self.SEC] - self.Tz) / 3600
         	result[self.Deltat]  = converted[self.SEC] - converted_prev[self.SEC]
 		if result[self.Deltat] == 0:
 			#avoid the /0 error
 			result[self.Deltat] = 1.0;
-		DeltaACR = (converted[self.ACR] - converted_prev[self.ACR]) 
+		DeltaACR = (converted[self.ACR] - converted_prev[self.ACR])
 
 		# If either of these are small then we want to skip to the next reading
 		# because of the error associated with small values
@@ -117,7 +117,7 @@ class PwrLogfile:
 
 	        result[self.Iavg]    = DeltaACR / (result[self.Deltat] / 3600)
 	        result[self.NetACR]  = converted[self.ACR] - self.ACRz
-	        result[self.Vavg]    = (converted[self.Vb] + converted_prev[self.Vb]) / 2	
+	        result[self.Vavg]    = (converted[self.Vb] + converted_prev[self.Vb]) / 2
         	result[self.Watts]   = result[self.Vavg] * (result[self.Iavg] / 1000)
 
 		if result[self.Watts] > self.charge_limit and self.enable_charge_limit:
@@ -128,7 +128,7 @@ class PwrLogfile:
 			result[self.Wavg]    = result[self.Wh] / result[self.Th]
 		else:
 			result[self.Wavg] = 0.
-		
+
 		return (result,0)
 
 	def read_file(self,filename):
@@ -144,6 +144,19 @@ class PwrLogfile:
                         	continue
 		        if row[0] == '<StartData>':
         	                break
+
+                        if row[0].startswith('DATE:'):
+				# Dates can have commas and they get pased as csv so reconstruct
+				# the full string.
+				dstring = ''
+				for each in row:
+					dstring += each
+				dcolon = dstring.find(":")+1
+				dstring = dstring[dcolon:]
+                                rundate = parser.parse(dstring,fuzzy=True)
+				self.header['DATE'] = rundate
+				continue
+
 	                try:
                         	values = row[0].split(':')
 				if len(values) > 1:
@@ -151,7 +164,10 @@ class PwrLogfile:
 				elif len(values) > 0:
 					self.header[values[0]] = ''
                 	except:
-                        	print 'Error in header: %s' & (filename)
+				print 'Error in header: %s' % (filename)
+
+		# Set the local timzone for where the data came from
+		self.local_tz = self.header['DATE'].tzinfo
 
 		# Now read in the data
 		try:
@@ -164,10 +180,10 @@ class PwrLogfile:
 		self.Tz   = converted_prev[self.SEC]
 		self.ACRz = converted_prev[self.ACR]
 		self.Wh_sum = 0.
-		# This keeps the division by zero error from occurring but does not generate 
+		# This keeps the division by zero error from occurring but does not generate
 		# a huge number because the ACRs are equal and you get zero for the result
 		converted_prev[self.SEC] = self.Tz-1
-		
+
 		# Process the first line with my fabricated previous data
 		results,error = self.process_data(converted, converted_prev)
 		self.Wh_sum = results[self.Wh]
@@ -176,7 +192,7 @@ class PwrLogfile:
 
 		converted.extend(results)
 		data.append(converted)
-		
+
 		# read the rest of the file
 		for row in reader:
 			if not row:
@@ -205,7 +221,7 @@ class PwrLogfile:
 
 def histo():
 	filenames = sys.argv[1:]
-	
+
 	pdat = mlab.csv2rec(filenames[0], names=None)
 
 	abs_pwr = pdat.avg_w * -1.0
@@ -230,10 +246,10 @@ def histo():
 
 	plt.figure()
 	plt.hist(pdat.total_time, 10, normed=False, facecolor='blue',alpha=.75)
-	
+
 	plt.figure()
 	plt.hist(abs_nacr, 10, normed=False, facecolor='red',alpha=.75)
- 
+
 	show()
 
 def process_logs(filenames,opt):
@@ -252,7 +268,7 @@ def process_logs(filenames,opt):
 	wavgs	= []
 	pl = PwrLogfile()
 	figures = []
-	
+
 	pl.set_min_sample_interval(opt.compress)
 
 # 	Seems broken
@@ -311,7 +327,7 @@ def process_logs(filenames,opt):
 		if show_voltcur:
 			ax4.plot(pl.darray.th[SKIP:],pl.darray.vb[SKIP:])
 			ax4_2.plot(pl.darray.th[SKIP:],pl.darray.ib[SKIP:])
-	
+
 		if dont_show:
 			ax2.plot(pl.darray.soc[SKIP:],pl.darray.ib[SKIP:])
 
@@ -334,7 +350,7 @@ def process_logs(filenames,opt):
 #	plt.figure()
 #	plt.scatter(runtimes,wavgs)
 #	plt.figure()
-#	plt.hist(wavgs,10, normed=False, facecolor='green')	
+#	plt.hist(wavgs,10, normed=False, facecolor='green')
 
 	show()
 
