@@ -1,9 +1,11 @@
 #!/usr/bin/python
 
-# Copyright One Laptop Per Child 
+# Copyright (C) 2011 One Laptop per Child
 # Released under GPLv2 or later
 # Version 0.0.2
 
+# dependencies on debian
+# python-argparse python-matplotlib python-dateutil
 
 import sys
 import csv
