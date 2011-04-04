@@ -214,7 +214,7 @@ for o, a in opts:
 
 printfname(" Filename  ",summary_seperator)
 printbuild(" Build ",summary_seperator)
-for each in ["Net time","Net ACR","Watthrs","Min W","Max W","Avg W","Crit time","Max temp","Temp rise","StartV","sec/mAh"]:
+for each in ["Net time","Net ACR","Watthrs","Min W","Max W","Avg W","Crit time","Max temp","Temp rise","StartV"]:
 	print '%9s%c' % (each,summary_seperator) ,
 print
 # Results defs
@@ -398,12 +398,6 @@ for filename in filenames:
 	summary.append(maxTb)
 	summary.append(maxTb_rise)
 	summary.append(Vz)
-
-	if result['NetACR'] != 0:
-		summary.append( (converted[SEC] - Tz) / result['NetACR'] )
-	else:
-		if not quiet:
-			print "Err: %s : NetACR = 0? " % filename
 
 	if positive or negative:
 		if positive and result['NetACR'] > 0:
