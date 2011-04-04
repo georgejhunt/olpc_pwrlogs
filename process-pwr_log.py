@@ -293,7 +293,7 @@ for filename in filenames:
 			try:
 				if row[0].startswith('DATE:'):
 					dstring = row[0][(row[0].find(":"))+1:].strip()
-					rundate = parse(dstring)
+					rundate = parse(dstring,fuzzy=True)
 					rundate_str = datetime.strftime(rundate,"%Y-%m-%d %H:%M")
 			except:
 				rundate_str = 'Err'
