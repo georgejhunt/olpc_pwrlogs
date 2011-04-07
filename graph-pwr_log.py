@@ -60,6 +60,7 @@ class PwrLogfile:
 		self.Wh      = 6
 		self.Wavg    = 7
 		self.Ttod    = 8
+		self.Zavg    = 9
 
 		# Small arrry for a place holder will will replace this once we have built the data list
 		self.darray	= zeros(3)
@@ -101,7 +102,7 @@ class PwrLogfile:
 		return converted
 
 	def process_data(self,converted, converted_prev):
-		result = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
+		result = [0.,0.,0.,0.,0.,0.,0.,0.,0.,0.]
 		dt_sample = datetime.fromtimestamp(converted[self.SEC],tz.tzutc())
 		dt_tz = dt_sample.astimezone(self.local_tz).timetuple()
 		result[self.Ttod] = float(dt_tz.tm_hour) + float(dt_tz.tm_min)/60.0
@@ -130,6 +131,11 @@ class PwrLogfile:
 			result[self.Wavg]    = result[self.Wh] / result[self.Th]
 		else:
 			result[self.Wavg] = 0.
+
+		if result[self.Iavg] != 0.0:
+			result[self.Zavg] = result[self.Vavg] / result[self.Iavg]
+		else:
+			result[self.Zavg] = 0
 
 		return (result,0)
 
@@ -212,7 +218,7 @@ class PwrLogfile:
 				print 'Conversion error in %s line: %d' % (filename,reader.line_num)
 		# Add the various init things to the header info for all the net diff calcs
 
-		self.darray = rec.fromrecords(data,names='sec,soc,vb,ib,tb,acr,th,iavg,netacr,deltat,vavg,watts,wh,wavg,tod')
+		self.darray = rec.fromrecords(data,names='sec,soc,vb,ib,tb,acr,th,iavg,netacr,deltat,vavg,watts,wh,wavg,tod,zavg')
 
 	def set_min_sample_interval(self,interval):
 		self.min_sample_interval=interval
@@ -258,11 +264,13 @@ def process_logs(filenames,opt):
 	# scatter plots need lists of numbers
 
 	show_avgpwr = 0
-	show_instpwr = 1
+	show_instpwr = 0
 	show_voltcur = 0
-	show_todpwr  = 1
+	show_todpwr  = 0
 	save_graphs  = 1
 	dont_show    = 0
+	show_volt    = 0
+	show_zavg    = 1
 
 	netacrs = []
 	runtimes = []
@@ -316,6 +324,17 @@ def process_logs(filenames,opt):
 		ax5.set_title('Power vs Time of day')
 		figures.append(fig5)
 
+	if show_volt:
+		fig6 = figure()
+		ax6 = fig6.add_subplot(111)
+		ax6.set_title('Voltage vs Time' )
+		figures.append(fig6)
+	if show_zavg:
+		fig7 = figure()
+		ax7 = fig7.add_subplot(111)
+		ax7.set_title('Impeadance vs Time' )
+		figures.append(fig7)
+
 	SKIP = 1
 	for filename in filenames:
 		pl.read_file(filename)
@@ -335,6 +354,12 @@ def process_logs(filenames,opt):
 
 		if show_todpwr:
 			ax5.plot(pl.darray.tod[SKIP:],pl.darray.watts[SKIP:])
+
+		if show_volt:
+			ax6.plot(pl.darray.th[SKIP:],pl.darray.vb[SKIP:])
+		if show_zavg:
+			ax7.plot(pl.darray.th[SKIP:],pl.darray.zavg[SKIP:])
+
 
 #		ax6.set_title('Runtime vs Batt Temp' )
 #		ax6.plot(pl.darray.th[SKIP:],pl.darray.tb[SKIP:])

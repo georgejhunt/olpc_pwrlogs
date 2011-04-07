@@ -8,7 +8,7 @@
 # to use this you either have to sudo chmod o+w /sys/power/ec or you 
 # have to run as root.
 
-VERSION="0.1.12"
+VERSION="0.1.13"
 FDATE=`date "+%y%m%d-%H%M%S"`
 HOST=`hostname -s`
 B_INFO=/sys/class/power_supply/olpc-battery
@@ -39,15 +39,29 @@ else
         KERNAPI=1
 fi
 
-# Make sure we can write the ec wakup command 
-# even as non-root
+# trap control/c and undo configuration changes
+function cleanup {
+    echo
+    echo "cleanup, unblock wifi"
+    sudo rfkill unblock wifi
+    echo "cleanup, unblock screen"
+    sudo su -c "echo 0 > /sys/class/backlight/dcon-bl/device/sleep"
+    sudo su -c "echo 15 > /sys/class/backlight/dcon-bl/brightness"
+    xset dpms
+    echo "cleanup, restart powerd"
+    sudo start powerd
+    exit
+}
+trap cleanup SIGINT
+
+# Make sure we can write the ec wakup command even as non-root
 test $XO_VERSION != "1" && sudo chmod o+w /sys/power/ec
 
 xset -dpms
 
 # Powerd conflicts with this script as we both try to use the rtctimer
 echo "Stopping powerd"
-sudo stop powerd 
+sudo stop powerd
 
 # Turn off the wireless device.
 echo "Powering off wireless"
