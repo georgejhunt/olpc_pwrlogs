@@ -23,7 +23,7 @@ else
         XO_VERSION="1"
 fi
 
-KERNVER=$(uname -r | cut -f1 -d_ | sed 's/\.//g')
+KERNVER=`uname -r | cut -c 1-6 | sed 's/\.//g'`
 
 if [[ $KERNVER -gt 2625 ]]; then
 	KERNAPI=2
