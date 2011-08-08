@@ -24,6 +24,11 @@ WALL_PERIOD=1
 # new WALL_PERIOD for the RTC check to expire.
 DELAY=60
 
+OFW=/ofw
+for x in /proc/device-tree /ofw; do
+    if [[ -e $x/mfg-data ]]; then OFW=$x; break; fi
+done
+
 if [ -e /sys/class/dmi/id/product_version ]
 then
         XO_VERSION=$(< /sys/class/dmi/id/product_version )
@@ -101,13 +106,13 @@ echo `date` >> $LOGFILE
 echo -n "DATESEC: " >> $LOGFILE
 echo `date +%s` >> $LOGFILE
 echo -n "ECVER: " >> $LOGFILE 
-echo `cat /ofw/ec-name` >> $LOGFILE
+echo `cat ${OFW}/ec-name` >> $LOGFILE
 echo -n "OFWVER: " >> $LOGFILE 
-echo `cat /ofw/openprom/model` >> $LOGFILE
+echo `cat ${OFW}/openprom/model` >> $LOGFILE
 echo -n "MODEL: " >> $LOGFILE 
-echo `cat /ofw/model` >> $LOGFILE
+echo `cat ${OFW}/model` >> $LOGFILE
 echo -n "SERNUM: " >> $LOGFILE
-echo `cat /ofw/serial-number` >> $LOGFILE
+echo `cat ${OFW}/serial-number` >> $LOGFILE
 echo -n "BATTECH: " >> $LOGFILE 
 echo `cat $B_INFO/technology` >> $LOGFILE
 echo -n "BATMFG: " >> $LOGFILE 

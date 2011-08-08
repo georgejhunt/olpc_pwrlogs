@@ -11,6 +11,11 @@ B_INFO=/sys/class/power_supply/olpc-battery
 # The delay between readings.
 DELAY=20
 
+OFW=/ofw
+for x in /proc/device-tree /ofw; do
+    if [[ -e $x/mfg-data ]]; then OFW=$x; break; fi
+done
+
 if [ -e /sys/class/dmi/id/product_version ]
 then
         XO_VERSION=$(< /sys/class/dmi/id/product_version )
@@ -18,7 +23,7 @@ else
         XO_VERSION="1"
 fi
 
-KERNVER=`uname -r | cut -c 1-6 | sed 's/\.//g'`
+KERNVER=$(uname -r | cut -f1 -d_ | sed 's/\.//g')
 
 if [[ $KERNVER -gt 2625 ]]; then
 	KERNAPI=2
@@ -93,13 +98,13 @@ echo `date -R` 		>> $LOGFILE
 echo -n "DATESEC: " 	>> $LOGFILE
 echo `date +%s` 	>> $LOGFILE
 echo -n "ECVER: " 	>> $LOGFILE
-echo `cat /ofw/ec-name` >> $LOGFILE
+echo `cat ${OFW}/ec-name` >> $LOGFILE
 echo -n "OFWVER: " 	>> $LOGFILE
-echo `cat /ofw/openprom/model` 	>> $LOGFILE
+echo `cat ${OFW}/openprom/model` 	>> $LOGFILE
 echo -n "MODEL: " 	>> $LOGFILE
-echo `cat /ofw/model` 	>> $LOGFILE
+echo `cat ${OFW}/model` >> $LOGFILE
 echo -n "SERNUM: " 	>> $LOGFILE
-echo `cat /ofw/serial-number` 	>> $LOGFILE
+echo `cat ${OFW}/serial-number`	>> $LOGFILE
 echo -n "BATTECH: " 	>> $LOGFILE
 echo `cat $B_INFO/technology` 	>> $LOGFILE
 echo -n "BATMFG: " 	>> $LOGFILE
