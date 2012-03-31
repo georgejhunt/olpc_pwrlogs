@@ -73,71 +73,50 @@ if  [[ "${BATTERY_STATUS}" == "Discharging" ]]; then
    done
 fi
 
-# Want the backlight on max to help draw power.
-set_backlight_full
+echo "Topping off the battery"
 
-PRE_BATTERY_SOC=0
-if [[ "${BATTERY_STATUS}" == "Full" ]]; then
-    get_soc BATTERY_SOC
-    if [[ ( ${BATTERY_SOC} -ne 100 ) ]]; then
-        echo "Battery FULL but not 100%"
-        echo "Discharge until capacity below $BATTERY_FULL_FLAG_DOWN %"
-        disable_charging
-        while true
-        do
-            get_soc BATTERY_SOC
-            if [[ ( ${BATTERY_SOC} -lt ${PRE_BATTERY_SOC} ) ]]; then
-                echo "Discharging : SOC : $BATTERY_SOC"
-            fi
-            if [[ ( ${BATTERY_SOC} -lt ${BATTERY_FULL_FLAG_DOWN} ) ]]; then
-                echo "Battery Capacity less then $BATTERY_FULL_FLAG_DOWN"
-                echo "Enable charging"
-                enable_charging
-		sleep 1
-                break
-            fi
-            PRE_BATTERY_SOC=$BATTERY_SOC
-        done
-    fi
-fi
-
-PRE_BATTERY_SOC=0
+# With EC code > 0.4.02 enterning into runin discharge mode
+# will clear the battery full flag.
+disable_charging
+sleep 2
+enable_charging
 
 while true
 do
     get_soc BATTERY_SOC
     get_sta BATTERY_STATUS
     get_cur BATTERY_CUR
-    if [[ ${BATTERY_SOC} -gt ${PRE_BATTERY_SOC} ]]; then
-	echo "Charging : SOC : ${BATTERY_SOC} : Current : $(( ${BATTERY_CUR}/1000 )) mA "
-    fi
+    get_vol BATTERY_VOL
+    VOLT_100s=$(( ${BATTERY_VOL}/10000 ))
+    VOLT_STR=$(format_hundreds_as_n.nn $VOLT_100s)
+
+    echo "Precharge: SOC: ${BATTERY_SOC} : Current: $(( ${BATTERY_CUR}/1000 )) mA : Voltage: ${VOLT_STR} V "
 
     if [[ ${BATTERY_STATUS} == "Full" ]]; then
 	echo "Battery status: ${BATTERY_STATUS}"
 	break
     fi
-    PRE_BATTERY_SOC=$BATTERY_SOC
-    sleep 1
+    sleep 5
 done
 
 
-echo "Waiting for battery to cool below 28"
+echo "Waiting for battery to cool below 28.2"
 get_temp BATTERY_TEMP
 echo "Start temp: $(format_hundreds_as_n.nn $BATTERY_TEMP) C"
-START_TIME=get_seconds
+START_TIME=$(get_seconds)
 while true
 do
     get_temp BATTERY_TEMP
     # Only show the updated on the screen not in the logs
     printf "Battery temperature: $(format_hundreds_as_n.nn $BATTERY_TEMP) C\r" >&2
-    if [[ ${BATTERY_TEMP} -lt 2800 ]] ; then
+    if [[ ${BATTERY_TEMP} -lt 2820 ]] ; then
 	echo
         echo "Battery cooled to $(format_hundreds_as_n.nn $BATTERY_TEMP) C"
         break
     fi
     sleep 1
 done
-echo "Cooling took $(( get_seconds - $START_TIME )) seconds"
+echo "Cooling took $(( $(get_seconds) - $START_TIME )) seconds"
 
 echo
 echo "DISCHARGE"
