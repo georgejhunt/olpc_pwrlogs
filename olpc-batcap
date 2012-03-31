@@ -4,6 +4,14 @@
 # Error if we try to use an undefined variable
 # set -u
 
+
+# These are used by the logfile header
+PRGNAME="olpc-batcap"
+VERSION="0.1.1"
+
+echo -n "$PRGNAME Ver: $VERSION starting at "
+echo `date`
+
 if [ -e ./olpc-pwr-common ]; then
 	source "./olpc-pwr-common"
 elif [ -e /usr/share/olpc-utils/olpc-pwr-common ]; then
@@ -40,10 +48,6 @@ echo "Waiting for a battery"
 wait_for_battery
 echo "Reading battery info"
 pwrlog_battery_init
-
-# These are used by the logfile header
-PRGNAME="Batcap"
-VERSION="0.1.0"
 
 BATTERY_FULL_FLAG_DOWN=92
 BATTERY_LOW_VOL=5100000
@@ -208,3 +212,5 @@ do
     sleep 20
 done
 
+echo -n "$PRGNAME ending at "
+echo `date`
