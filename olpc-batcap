@@ -127,13 +127,17 @@ HOST=`hostname -s`
 LOGFILE="dis-$DS_SERNUM-$FDATE.csv"
 pwrlog_write_header
 
-# The following processes in runin discharge represents between
-# a .29C to .36C discharge rate depending on the battery voltage
+set_backlight_full
+
+# Set the discharge current by running a few other tasks.
+# The current draw can be changed by changing the master volume
+# level.  83% works out to ~850mA and 70% is ~700mA.
 
 amixer set Speaker 100% unmute /dev/null
 amixer set Master 83% unmute > /dev/null
 gst-launch audiotestsrc volume=1 freq=100 ! audioconvert ! alsasink > /dev/null 2>&1 &
 AUDIO_PID=$!
+
 sh /runin/runin-camera > /dev/null 2>&1 &
 CAMERA_PID=$!
 
