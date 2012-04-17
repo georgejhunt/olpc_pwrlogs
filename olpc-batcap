@@ -141,6 +141,8 @@ amixer set Speaker 100% unmute /dev/null
 amixer set Master 83% unmute > /dev/null
 gst-launch audiotestsrc volume=1 freq=100 ! audioconvert ! alsasink > /dev/null 2>&1 &
 AUDIO_PID=$!
+# Give audio maximum prioity so it does not skip.
+sudo chrt -p 99 $AUDIO_PID
 
 sh /runin/runin-camera > /dev/null 2>&1 &
 CAMERA_PID=$!
