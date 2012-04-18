@@ -326,9 +326,15 @@ for filename in filenames:
 				lap_ser = 'Err'
 			try:
 				if row[0].startswith('DATE:'):
-					dstring = row[0][(row[0].find(":"))+1:].strip()
-					rundate = parse(dstring,fuzzy=True)
-					rundate_str = datetime.strftime(rundate,"%Y-%m-%d %H:%M")
+                                       # Dates can have commas and they get pased as csv so reconstruct
+                                        # the full string.
+                                        dstring = ''
+                                        for each in row:
+                                                dstring += each
+                                        dcolon = dstring.find(":")+1
+                                        dstring = dstring[dcolon:]
+                                        rundate = parse(dstring,fuzzy=True)
+					rundate_str = datetime.strftime(rundate,"%Y/%m/%d %H:%M:%S")
 			except:
 				rundate_str = 'Err'
 				traceback.print_exc(file=sys.stdout)
