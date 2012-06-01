@@ -2,7 +2,6 @@
 
 # Copyright (C) 2011 One Laptop per Child
 # Released under GPLv2 or later
-# Version 0.0.3
 
 # dependencies on debian
 # python-argparse python-matplotlib python-dateutil
@@ -21,7 +20,7 @@ import argparse
 from datetime import datetime, date, time
 from dateutil import tz, parser
 from matplotlib.backends.backend_pdf import PdfPages
-from scipy import interpolate
+from scipy.interpolate import interp1d
 
 class pwr_trace:
 	def __init__(self):
@@ -295,38 +294,8 @@ class PwrLogfile:
 		self.enable_charge_limit=True
 		self.charge_limit=limit
 
-def histo():
-	filenames = sys.argv[1:]
-
-	pdat = mlab.csv2rec(filenames[0], names=None)
-
-	abs_pwr = pdat.avg_w * -1.0
-	abs_pwr.sort()
-
-	time_max = pdat.total_time.max()
-	abs_nacr = pdat.netacr * -1
-	nacr_max = abs_nacr.max()
-
-	runs = len(abs_pwr)
-
-	fig = figure()
-	ax = fig.add_subplot(111)
-	majorTick = MultipleLocator(.1)
-	minorTick = MultipleLocator(.05)
-	n, bins, patches = ax.hist(abs_pwr, 10, normed=False, facecolor='green', alpha=0.75)
-	ax.set_title('Idle power histogram: %d runs' % (runs) )
-	ax.set_xlabel('Avg Power (Watts)')
-	ax.set_ylabel('Occurance')
-	ax.xaxis.set_major_locator(majorTick)
-	ax.xaxis.set_minor_locator(minorTick)
-
-	plt.figure()
-	plt.hist(pdat.total_time, 10, normed=False, facecolor='blue',alpha=.75)
-
-	plt.figure()
-	plt.hist(abs_nacr, 10, normed=False, facecolor='red',alpha=.75)
-
-	show()
+def acr_trend_compare(a, b):
+	return cmp(a[0],b[0])
 
 def filter_data(series,size=5):
 	# we only do odd filter sizes
@@ -376,6 +345,19 @@ def process_logs(filenames,opt):
 	SKIP 			= opt.skip
 	show_temp 		= opt.temp
 	debug_show_filenames 	= opt.debug
+	title_append	 	= opt.title
+	show_acr_trend		= opt.acrtrend
+	ignore_date_before	= False
+
+	if opt.dignore:
+		try:
+			ignore_date_before = True
+			ignore_date = parser.parse(opt.dignore,fuzzy=True)
+			ignore_date = ignore_date.replace(tzinfo=tz.tzutc())
+		except:
+			print "Can't parse ignore date"
+			ignore_date_before = False
+
 
 	netacrs = []
 	runtimes = []
@@ -386,8 +368,11 @@ def process_logs(filenames,opt):
 	average_ib = np.arange(1)
 	average_W  = np.arange(1)
 	nr_data_series = 0
+	acr_trend = {}
+	acr_trend_avg = []
 
 	pl.set_min_sample_interval(opt.compress)
+
 
 # 	Seems broken
 #	if hasattr(opt,"chg_limit"):
@@ -414,17 +399,27 @@ def process_logs(filenames,opt):
 		ax3.set_xlabel('Delta Time (Hours)')
 		ax3.set_ylabel('Inst Power (Watts)')
 		if show_raw_data:
-			ax3.set_title('Power vs Time' )
+			title = 'Power vs Time'
 		else:
-			ax3.set_title('Power (filtered) vs Time' )
+			title ='Power (filtered) vs Time'
+		if title_append:
+			title = title + (' (%s)' % title_append)
+		ax3.set_title(title)
 		figures.append(fig3)
 
 	if show_voltcur:
 		fig4 = figure()
 		ax4 = fig4.add_subplot(211)
-		ax4.set_title('Voltage vs Time' )
+		title = 'Voltage vs Time'
+		if title_append:
+		    title = title + (' (%s)' % title_append)
+		ax4.set_title(title)
+
 		ax4_2 = fig4.add_subplot(212)
-		ax4_2.set_title('Current vs Time' )
+		title = 'Current vs Time'
+		if title_append:
+		    title = title + (' (%s)' % title_append)
+		ax4_2.set_title(title)
 		figures.append(fig4)
 
 	if show_todpwr:
@@ -449,7 +444,10 @@ def process_logs(filenames,opt):
 	if show_acrhist:
 		fig8= figure()
 		ax8 = fig8.add_subplot(111)
-		ax8.set_title('Capacity Histogram')
+		if title_append:
+		    ax8.set_title('Capacity Histogram (%s)' % title_append)
+		else:
+		    ax8.set_title('Capacity Histogram')
 		ax8.set_xlabel('mAh')
 		ax8.set_ylabel('Runs (nomalized)')
 		if not acrhist_autorange:
@@ -463,9 +461,12 @@ def process_logs(filenames,opt):
 		fig9=figure()
 		ax9 = fig9.add_subplot(111)
 		if show_raw_data:
-			ax9.set_title('Current vs Time')
+		    title = 'Current vs Time'
 		else:
-			ax9.set_title('Current (filtered) vs Time')
+		    title = 'Current (filtered) vs Time'
+		if title_append:
+		    title = title + (' (%s)' % title_append)
+		ax9.set_title(title)
 		ax9.set_xlabel('Delta Time (Hours)')
 		ax9.set_ylabel('Current (mA)')
 		figures.append(fig9)
@@ -485,6 +486,16 @@ def process_logs(filenames,opt):
 		ax11.set_title('Battery Temperature vs Time' )
 		ax11.set_ylabel('Battery Temperature degC')
 		ax11.set_xlabel('Delta Time (Hours)')
+
+	if show_acr_trend:
+		fig12 = figure()
+		ax12 = fig12.add_subplot(111)
+		ax12.set_title('Per Battery net ACR Trend ' )
+		ax12.set_ylabel('Net ACR (mAh)')
+		ax12.set_xlabel('Test Run')
+		minorTick = MultipleLocator(10)
+		ax12.yaxis.set_minor_locator(minorTick)
+#		ax12_2 = fig12.add_subplot(212)
 
 	for filename in filenames:
 		read_result = pl.read_file(filename)
@@ -533,6 +544,21 @@ def process_logs(filenames,opt):
 		if show_temp:
 			ax11.plot(pl.darray.th[SKIP:],pl.darray.tb[SKIP:])
 
+		if show_acr_trend:
+			use_this_point = True
+			if ignore_date_before and pl.header['DATE'] < ignore_date:
+				use_this_point = False
+
+			if use_this_point:
+				batser = pl.header['BATSER']
+				if batser in acr_trend:
+					 point_list = acr_trend[batser]
+				else:
+					point_list = []
+
+				# List elemets are a tuple of (date,ACR)
+				point_list.append( (pl.header['DATE'],abs(pl.darray.netacr[-1])) )
+				acr_trend[batser] = point_list
 
 		runtimes.append(pl.darray.th[-1])
 		netacrs.append(pl.darray.netacr[-1])
@@ -543,13 +569,18 @@ def process_logs(filenames,opt):
 		abs_acr = [abs(x) for x in netacrs]
 		mu    = np.mean(abs_acr)
 		stdev = np.std(abs_acr)
+		textstr = '$\mu=%.2f$\n$\sigma=%.2f$'%(mu, stdev)
 		if acrhist_autorange:
 			# 30 bins but let matplotlib sort out the range.
 			counts, bins, patches = ax8.hist(abs_acr,30,normed=True, facecolor='g',alpha=.75)
 		else:
 			# Scale the histogram so we can compare different graphs easily.
 			counts, bins, patches = ax8.hist(abs_acr,30,range=(2700,3000), normed=True, facecolor='g',alpha=.75)
-			ax8.set_ylim(0,.030)
+			ax8.set_ylim(0,.035)
+
+		props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+		ax8.text(0.05, 0.95, textstr, transform=ax8.transAxes, fontsize=14,
+			verticalalignment='top', bbox=props)
 		# Set the ticks to be at the edges of the bins
 #		ax8.set_xticks(bins)
 #		labels = ax8.get_xticklabels()
@@ -557,6 +588,41 @@ def process_logs(filenames,opt):
 #			label.set_rotation(40)
 		npdf  = normpdf(bins, mu, stdev)
 		ax8.plot(bins,npdf,'k--',linewidth=1.5)
+
+	if show_acr_trend:
+		for k,v in acr_trend.iteritems():
+			# sort the tuples by date rundate
+			v.sort(acr_trend_compare)
+			# Break the (date,value) tuple apart and replace the date with number starting at 1 continuing to the
+			# end of this list.  This make the plots regular on the X axis
+			item_index=0
+			acr_val = []
+			for each in v:
+				acr_val.append(each[1])
+
+				try:
+					value, count = acr_trend_avg[item_index]
+					value+=each[1]
+					count+=1
+					acr_trend_avg[item_index] = (value,count)
+				except IndexError:
+					acr_trend_avg.append( (float(each[1]),1) )
+
+				item_index+=1
+
+			ax12.plot(range(1,len(acr_val)+1),acr_val,alpha=.75)
+#			pf = np.polyfit(xval,acr_val,3)
+#			fit = np.poly1d(pf)
+#			ax12_2.plot(xval,fit(xval))
+
+		avg_result = []
+		for each in acr_trend_avg:
+			value, count = each
+			value/= count
+			avg_result.append(value)
+
+		ax12.plot(range(1,len(avg_result)+1),avg_result,'s-',linewidth=2,color='black')
+		ax12.set_xlim(left=1)
 
 	if save_graphs:
 		for each in figures:
@@ -595,7 +661,12 @@ def main():
 		help="Plot battery temperature vs time")
 	parser.add_argument('--pwr', action='store_true',default=False,
 		help="Plot instant power vs time")
-
+	parser.add_argument('--title',
+		help="Text to append to the plot titles")
+	parser.add_argument('--acrtrend', action='store_true',default=False,
+		help="Plot net ACR trend per battery")
+	parser.add_argument('--dignore',
+		help="Ignore dates eariler than this for ACR trend")
 
 	args = parser.parse_args()
 
