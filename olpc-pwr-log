@@ -3,13 +3,23 @@
 # Power logging script
 # Released under GPLv3
 
-VERSION="2.0.5"
-FDATE=`date "+%y%m%d-%H%M%S"`
+VERSION="2.1.0"
 HOST=`hostname -s`
 B_INFO=/sys/class/power_supply/olpc-battery
 
 # The delay between readings.
 DELAY=20
+FAST_SAMPLE_V=5200000
+
+# Make sure we have a correct system date.  As of now
+# Jan 1 2012 is in the past so use that as a marker.
+if [[ `date +%s` -lt 1325376000 ]]; then
+	echo "`date` is in the past."
+	echo "Fix your system date please"
+	exit 1
+fi
+
+FDATE=`date "+%y%m%d-%H%M%S"`
 
 if [ -e /usr/share/olpc-utils/olpc-utils-functions ]; then
 	source /usr/share/olpc-utils/olpc-utils-functions
@@ -46,8 +56,8 @@ KERNVER=`uname -r | cut -c 1-6 | sed 's/[\._-]//g'`
 KERNAPI=1
 if [[ $KERNVER -gt 2600 ]]; then
 	# of the 2.6 series, 25 or later
-if [[ $KERNVER -gt 2625 ]]; then
-	KERNAPI=2
+	if [[ $KERNVER -gt 2625 ]]; then
+		KERNAPI=2
 	fi
 else
 	# 3.0.0
@@ -65,9 +75,14 @@ done
 # read all the info.
 
 echo "Found one."
-echo "Pausing to let the EC think"
 
-sleep 1
+# XO-1's with older ec-code need some time to load in
+# the battery values.
+if [[ $XO_VERSION = 1 ]]; then
+
+	echo "Pausing to let the EC think"
+	sleep 1
+fi
 
 # Now that we have a battery we can use the battery serial number in
 # the filename.
@@ -97,6 +112,8 @@ then
 	# and in single byte mode.  I don't use od directly since the
 	# -j skip does not do a real fseek.
 	echo "Reading eeprom data."
+
+	MFGFAC=`dd if=$B_INFO/eeprom bs=1 skip=06 count=2 2> /dev/null| od -A n -t x1 `
 	MFG_SER=`dd if=$B_INFO/eeprom bs=1 skip=64 count=5 2> /dev/null | od -A n -t x1`
 	CHGCNT=`dd if=$B_INFO/eeprom bs=1 skip=74 count=2 2> /dev/null| od -A n -t x1 `
 	CHGSOC=`dd if=$B_INFO/eeprom bs=1 skip=76 count=1 2> /dev/null| od -A n -t x1 `
@@ -104,6 +121,7 @@ then
 	DISSOC=`dd if=$B_INFO/eeprom bs=1 skip=79 count=1 2> /dev/null| od -A n -t x1 `
 else
 	echo "Can't read the eeprom data because your kernel dosen't support eeprom dump"
+	MFGFAC="NA"
 	MFG_SER="NA"
 	CHGCNT="NA"
 	CHGSOC="NA"
@@ -153,6 +171,8 @@ echo -n "KERNVER: " 	>> $LOGFILE
 echo $KERNVER 		>> $LOGFILE
 echo -n "KERNAPI: " 	>> $LOGFILE
 echo $KERNAPI 		>> $LOGFILE
+echo -n "MFGFAC: " 	>> $LOGFILE
+echo $MFGFAC 		>> $LOGFILE
 
 # Allow the addition of some descriptive text from the cmd line
 echo -n "COMMENT: " >> $LOGFILE
@@ -219,7 +239,6 @@ function take_reading {
 	NET_MINUTES=$(( ( ${THIS_SEC} - ${START_TIME} ) / 60 ))	
 	echo `date +%s`",$CAPLEVEL,$VOLT,$CURR,$TEMP,$ACR,$STAT,$MAh,$NET_MINUTES" | tee -a $LOGFILE
 	sync
-	sleep $DELAY
 }
 
 START_ACR=$(get_acr)
@@ -230,20 +249,27 @@ take_reading
 
 while true
 do
-        if [[ $STAT != "Full" ]]
-        then
+        if [[ $STAT != "Full" ]]; then
                 FULL_EDGE=0
         fi
 
-        if [[ $FULL_EDGE = 0 ]]
-        then
+        if [[ $FULL_EDGE = 0 ]]; then
                 take_reading
+
+		# During battery capacity testing we need to try and grab a sample
+		# close to 5V so speed up the sample frequency when we get close
+		if [[ $VOLT -lt $FAST_SAMPLE_V ]]; then
+			sleep 1
+		else
+			sleep $DELAY
+		fi
         else
                 STAT=$(< $B_INFO/status)
+		# Don't spin
+		sleep .1
         fi
 
-        if [[ $FULL_EDGE = 0 && $STAT = "Full" ]]
-        then
+        if [[ $FULL_EDGE = 0 && $STAT = "Full" ]]; then
                 FULL_EDGE=1
         fi
 done
