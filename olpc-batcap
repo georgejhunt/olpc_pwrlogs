@@ -7,7 +7,7 @@
 
 # These are used by the logfile header
 PRGNAME="olpc-batcap"
-VERSION="0.1.1"
+VERSION="0.1.3"
 
 echo -n "$PRGNAME Ver: $VERSION starting at "
 echo `date`
@@ -103,8 +103,15 @@ do
     sleep 5
 done
 
+# Accuracy of the sensor is +/- 2 degC.  I'd like to have this number lower but I found 
+# testing at the OLPC office that many of the batterys can sit for very long periods
+# waiting for the temp to decrease. (Office temp 25-30 deg C)
+# TODO: Change this to and adaptive scheme. So it will work regardless of the ambient
+# temp
 
-echo "Waiting for battery to cool below 28.2"
+COOLING_TEMP=3080
+
+echo "Waiting for battery to cool below $(format_hundreds_as_n.nn $COOLING_TEMP) C"
 get_temp BATTERY_TEMP
 echo "Start temp: $(format_hundreds_as_n.nn $BATTERY_TEMP) C"
 START_TIME=$(get_seconds)
@@ -112,8 +119,8 @@ while true
 do
     get_temp BATTERY_TEMP
     # Only show the updated on the screen not in the logs
-    printf "Battery temperature: $(format_hundreds_as_n.nn $BATTERY_TEMP) C\r" >&2
-    if [[ ${BATTERY_TEMP} -lt 2820 ]] ; then
+    printf "Temperature: $(format_hundreds_as_n.nn $BATTERY_TEMP) C seconds: $(( $(get_seconds) - $START_TIME )) \r" >&2
+    if [[ ${BATTERY_TEMP} -lt ${COOLING_TEMP} ]] ; then
 	echo
         echo "Battery cooled to $(format_hundreds_as_n.nn $BATTERY_TEMP) C"
         break
