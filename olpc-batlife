@@ -1,0 +1,158 @@
+#!/bin/bash
+# Factory IQC script to measure battery capacity
+
+# Error if we try to use an undefined variable
+set -u
+
+# The duty cycle for the web fetch portion of the test
+# its in percent.  The loop time is 1 minute so a value of 50
+# means that we will fetch the file for 30 seconds and then 
+# suspend for 30.
+
+WEB_DUTY_CYCLE=50
+
+SKIP_VIDEO_TEST="false"
+
+# These are used by the logfile header
+PRGNAME="olpc-batlife"
+VERSION="0.0.1"
+
+echo -n "$PRGNAME Ver: $VERSION starting at "
+echo `date`
+
+if [ -e ./olpc-pwr-common ]; then
+	source "./olpc-pwr-common"
+elif [ -e /usr/share/olpc-utils/olpc-pwr-common ]; then
+	source /usr/share/olpc-utils/olpc-pwr-common
+else
+	echo "Can't find 'olpc-pwr-common'"
+	exit 1
+fi
+
+if [ -e ./runin-common ]; then
+	source "./runin-common"
+elif [ -e /runin/runin-common ]; then
+	source /runin/runin-common
+else
+	echo "Can't find 'runin-common'"
+	exit 1
+fi
+
+# We use this for powerd realated flags.
+MY_PID=$$
+
+# Make sure that if we exit via ctrl-C that
+# charging gets turned back on.
+function cleanup
+{
+	enable_charging
+	exit
+}
+trap cleanup SIGINT
+
+function video_test()
+{
+	sh /runin/runin-camera > /dev/null 2>&1 &
+	CAMERA_PID=$!
+	TSTART=$(get_timestamp)
+
+	take_reading
+	log_reading
+
+	while true
+	do
+	    take_reading
+	    log_reading
+	    VOLT_100s=$(( ${VOLT}/10000 ))
+	    VOLT_STR=$(format_hundreds_as_n.nn $VOLT_100s)
+	    get_cur BATTERY_CUR
+	    printf "SOC: %d %%, Consumption : %d mAh, Voltage : %s V, Current %d mA\n"  $CAPLEVEL $MAh_NET $VOLT_STR $(( ${BATTERY_CUR}/1000 ))
+	    sleep 60
+	    if [ $(diff_time $TSTART) -gt 3600 ]; then 
+		break
+	    fi
+	done
+
+# This does not seem to work as gts-launch-0.10 stays running
+#	kill $CAMERA_PID
+# Take out all gst-launch programs (should deal with a version number change)
+	killall -r 'gst-launch*'
+}
+
+
+pwrlog_module_init
+
+echo "Waiting for a battery"
+wait_for_battery
+echo "Reading battery info"
+pwrlog_battery_init
+
+get_extpwr EXTPWR_STATUS
+if  [[ "${EXTPWR_STATUS}" == "1" ]]; then
+   echo "Disconnect external power to start the test"
+
+   while [[ "${EXTPWR_STATUS}" == "1" ]]
+   do
+        sleep 1
+        get_extpwr EXTPWR_STATUS
+   done
+fi
+
+# Tell powerd not to suspend since this script will maange that and 
+# prevent it from dimming the backlight 
+
+touch /var/run/powerd-inhibit-suspend/$MY_PID
+touch /var/run/powerd-inhibit-dim/$MY_PID
+
+FDATE=`date "+%y%m%d-%H%M%S"`
+HOST=`hostname -s`
+LOGFILE="blife-$DS_SERNUM-$FDATE.csv"
+pwrlog_write_header
+init_readings
+
+# First we do 1 hour of camera/video for a high power metric.
+
+if [ $SKIP_VIDEO_TEST != "true" ]; then
+	video_test
+fi
+
+# Next we do a loop of fetching a 1MiB file from dev.laptop.org and then a suspend 
+# until powerd shuts us down.
+LOOP_BASE=60 
+DOWNLOAD_SECONDS=$(( (${LOOP_BASE}*${WEB_DUTY_CYCLE}*100)/10000 ))
+SUSPEND_SECONDS=$(( ${LOOP_BASE}-${DOWNLOAD_SECONDS} ))
+
+echo "Fetching for ${DOWNLOAD_SECONDS} seconds suspending for ${SUSPEND_SECONDS} seconds"
+take_reading
+log_reading
+ 
+while true
+do
+    TSTART=$(get_timestamp)
+    i=0
+    while [ $(diff_time ${TSTART}) -lt ${DOWNLOAD_SECONDS} ] 
+    do
+	printf "Fetch: $i \r" >&2
+	curl -Ss http://dev.laptop.org/~rsmith/batlife.dat > /dev/null
+	i=$(( $i+1 ))
+    done
+    TSTART=$(get_timestamp)
+    i=0
+    while [ $(diff_time ${TSTART}) -lt ${SUSPEND_SECONDS} ] 
+    do
+	printf "Sus: $i   \r" >&2
+	sudo rtcwake --seconds 10 --mode mem > /dev/null 2>/dev/null
+	i=$(( $i+1 ))
+    done
+    echo
+    take_reading
+    log_reading
+    VOLT_100s=$(( ${VOLT}/10000 ))
+    VOLT_INT=$(( ${VOLT_100s}/100 ))
+    VOLT_FRAC=$(( ${VOLT_100s} - ( ${VOLT_INT}*100 ) ))
+    get_cur BATTERY_CUR
+    printf "SOC: %d %%, Net mAh: %d , Voltage : %d.%02d V, Current %d mA\n"  $CAPLEVEL $MAh_NET $VOLT_INT $VOLT_FRAC $(( ${BATTERY_CUR}/1000 ))
+done
+
+echo -n "$PRGNAME ending at "
+echo `date`
