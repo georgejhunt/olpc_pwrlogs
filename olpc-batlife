@@ -11,7 +11,6 @@ set -u
 
 WEB_DUTY_CYCLE=50
 
-SKIP_VIDEO_TEST="false"
 
 # These are used by the logfile header
 PRGNAME="olpc-batlife"
@@ -36,6 +35,11 @@ elif [ -e /runin/runin-common ]; then
 else
 	echo "Can't find 'runin-common'"
 	exit 1
+fi
+
+SKIP_VIDEO_TEST="false"
+if [ ${1-0} = "skipvideo" ]; then
+	SKIP_VIDEO_TEST="true"
 fi
 
 # We use this for powerd realated flags.
@@ -65,8 +69,9 @@ function video_test()
 	    log_reading
 	    VOLT_100s=$(( ${VOLT}/10000 ))
 	    VOLT_STR=$(format_hundreds_as_n.nn $VOLT_100s)
-	    get_cur BATTERY_CUR
-	    printf "SOC: %d %%, Consumption : %d mAh, Voltage : %s V, Current %d mA\n"  $CAPLEVEL $MAh_NET $VOLT_STR $(( ${BATTERY_CUR}/1000 ))
+	    WATTS_100s=$(( $W_SAMPLE/10 ))
+	    WATTS_STR=$(format_hundreds_as_n.nn $WATTS_100s)
+	    printf "SOC: %d %%, Runtime: %d minutes, Net mAh: %d , Watts: %s W\n"  $CAPLEVEL $NET_MINUTES $MAh_NET $WATTS_STR
 	    sleep 60
 	    if [ $(diff_time $TSTART) -gt 3600 ]; then 
 		break
@@ -102,7 +107,9 @@ fi
 # prevent it from dimming the backlight 
 
 touch /var/run/powerd-inhibit-suspend/$MY_PID
-touch /var/run/powerd-inhibit-dim/$MY_PID
+if [ -e /var/run/powerd-inhibit-dim ]; then
+	touch /var/run/powerd-inhibit-dim/$MY_PID
+fi
 
 FDATE=`date "+%y%m%d-%H%M%S"`
 HOST=`hostname -s`
@@ -132,15 +139,16 @@ do
     i=0
     while [ $(diff_time ${TSTART}) -lt ${DOWNLOAD_SECONDS} ] 
     do
-	printf "Fetch: $i \r" >&2
-	curl -Ss http://dev.laptop.org/~rsmith/batlife.dat > /dev/null
+	printf "Fetch loop: $i \r" >&2
+	curl -Ss -m 10 http://dev.laptop.org/~rsmith/batlife.dat > /dev/null
 	i=$(( $i+1 ))
     done
+    echo
     TSTART=$(get_timestamp)
     i=0
     while [ $(diff_time ${TSTART}) -lt ${SUSPEND_SECONDS} ] 
     do
-	printf "Sus: $i   \r" >&2
+	printf "Sus loop: $i   \r" >&2
 	sudo rtcwake --seconds 10 --mode mem > /dev/null 2>/dev/null
 	i=$(( $i+1 ))
     done
@@ -150,8 +158,9 @@ do
     VOLT_100s=$(( ${VOLT}/10000 ))
     VOLT_INT=$(( ${VOLT_100s}/100 ))
     VOLT_FRAC=$(( ${VOLT_100s} - ( ${VOLT_INT}*100 ) ))
-    get_cur BATTERY_CUR
-    printf "SOC: %d %%, Net mAh: %d , Voltage : %d.%02d V, Current %d mA\n"  $CAPLEVEL $MAh_NET $VOLT_INT $VOLT_FRAC $(( ${BATTERY_CUR}/1000 ))
+    WATTS_100s=$(( $W_SAMPLE/10 ))
+    WATTS_STR=$(format_hundreds_as_n.nn $WATTS_100s)
+    printf "SOC: %d %%, Runtime: %d minutes, Net mAh: %d , Watts: %s W\n"  $CAPLEVEL $NET_MINUTES $MAh_NET $WATTS_STR
 done
 
 echo -n "$PRGNAME ending at "
