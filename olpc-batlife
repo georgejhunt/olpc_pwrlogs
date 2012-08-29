@@ -6,15 +6,14 @@ set -u
 
 # The duty cycle for the web fetch portion of the test
 # its in percent.  The loop time is 1 minute so a value of 50
-# means that we will fetch the file for 30 seconds and then 
+# means that we will fetch the file for 30 seconds and then
 # suspend for 30.
 
 WEB_DUTY_CYCLE=50
 
-
 # These are used by the logfile header
 PRGNAME="olpc-batlife"
-VERSION="0.0.1"
+VERSION="0.1.0"
 
 echo -n "$PRGNAME Ver: $VERSION starting at "
 echo `date`
@@ -73,15 +72,21 @@ function video_test()
 	    WATTS_STR=$(format_hundreds_as_n.nn $WATTS_100s)
 	    printf "SOC: %d %%, Runtime: %d minutes, Net mAh: %d , Watts: %s W\n"  $CAPLEVEL $NET_MINUTES $MAh_NET $WATTS_STR
 	    sleep 60
-	    if [ $(diff_time $TSTART) -gt 3600 ]; then 
+	    if [ $(diff_time $TSTART) -gt 3600 ]; then
 		break
 	    fi
 	done
 
-# This does not seem to work as gts-launch-0.10 stays running
-#	kill $CAMERA_PID
-# Take out all gst-launch programs (should deal with a version number change)
+# This does not work as gts-launch-0.10 stays running.
+# TODO: Tweak runin-camera so that it kills the gst-launch instances when it exits.
+	kill $CAMERA_PID
+# Take out all gst-launch programs (the regex match should deal with a version number change)
+# We have to do this twice because runin-camera can actually run 2 instances of gst-launch.
+# The 1st one uses xvimagesink and then the fallback just uses ximagesink.  So if the 1st attempt
+# works then we still have 1 more to deal with after we kill it.
 	killall -r 'gst-launch*'
+	sleep 2
+	killall -r 'gst-launch*' > /dev/null
 }
 
 
@@ -103,8 +108,8 @@ if  [[ "${EXTPWR_STATUS}" == "1" ]]; then
    done
 fi
 
-# Tell powerd not to suspend since this script will maange that and 
-# prevent it from dimming the backlight 
+# Tell powerd not to suspend since this script will maange that and
+# prevent it from dimming the backlight
 
 touch /var/run/powerd-inhibit-suspend/$MY_PID
 if [ -e /var/run/powerd-inhibit-dim ]; then
@@ -123,9 +128,13 @@ if [ $SKIP_VIDEO_TEST != "true" ]; then
 	video_test
 fi
 
-# Next we do a loop of fetching a 1MiB file from dev.laptop.org and then a suspend 
+# Next we do a loop of fetching a 1MiB file from dev.laptop.org and then a suspend
 # until powerd shuts us down.
-LOOP_BASE=60 
+LOOP_TIME=60
+# Adding this delay didn't help. On 1.5 there are occurrances of > 60 seconds where 
+# there's not an association afer resume.
+SUSPEND_DELAY=0
+LOOP_BASE=$(( ${LOOP_TIME} - ${SUSPEND_DELAY} ))
 DOWNLOAD_SECONDS=$(( (${LOOP_BASE}*${WEB_DUTY_CYCLE}*100)/10000 ))
 SUSPEND_SECONDS=$(( ${LOOP_BASE}-${DOWNLOAD_SECONDS} ))
 
@@ -137,16 +146,21 @@ while true
 do
     TSTART=$(get_timestamp)
     i=0
-    while [ $(diff_time ${TSTART}) -lt ${DOWNLOAD_SECONDS} ] 
+    while [ $(diff_time ${TSTART}) -lt ${DOWNLOAD_SECONDS} ]
     do
-	printf "Fetch loop: $i \r" >&2
 	curl -Ss -m 10 http://dev.laptop.org/~rsmith/batlife.dat > /dev/null
+	CURL_RET=$?
+	if [ $? -eq 0 ]; then
+		printf "Fetch count: $i                \r" >&2
+	else
+		printf "Curl error: $CURL_RET count $i \r" >&2
+	fi
 	i=$(( $i+1 ))
     done
     echo
     TSTART=$(get_timestamp)
     i=0
-    while [ $(diff_time ${TSTART}) -lt ${SUSPEND_SECONDS} ] 
+    while [ $(diff_time ${TSTART}) -lt ${SUSPEND_SECONDS} ]
     do
 	printf "Sus loop: $i   \r" >&2
 	sudo rtcwake --seconds 10 --mode mem > /dev/null 2>/dev/null
