@@ -156,6 +156,9 @@ class PwrLogfile:
 
 	def read_file(self,filename):
 		data = []
+		if os.stat(filename).st_size == 0:
+			return False
+
 		reader = csv.reader(open(filename,"rb"))
 		# Read the header into a dictionary
 		# Default to XO version 1 since it does not exist in earlier
@@ -192,10 +195,16 @@ class PwrLogfile:
 		except:
 			print 'Read error in %s line: %d' % (filename,reader.line_num)
 
+
 		# Set the local timzone for where the data came from
-		self.local_tz = self.header['DATE'].tzinfo
-		if self.local_tz == None:
-			print "File: %s Unknown TZ: %s" % (filename,dstring)
+		try:
+			self.local_tz = self.header['DATE'].tzinfo
+
+			if self.local_tz == None:
+				print "File: %s Unknown TZ: %s" % (filename,dstring)
+				self.local_tz = tz.tzutc()
+		except:
+			print "File: %s 'DATE' processing problem" % (filename)
 			self.local_tz = tz.tzutc()
 
 		# Now read in the data
@@ -224,6 +233,7 @@ class PwrLogfile:
 		data.append(converted)
 
 		power_data_valid = False
+		row_processed = False
 
 		# read the rest of the file
 		try:
@@ -495,6 +505,7 @@ def process_logs(filenames,opt):
 		ax12.set_xlabel('Test Run')
 		minorTick = MultipleLocator(10)
 		ax12.yaxis.set_minor_locator(minorTick)
+		ax12.grid()
 #		ax12_2 = fig12.add_subplot(212)
 
 	for filename in filenames:
