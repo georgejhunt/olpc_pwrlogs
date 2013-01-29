@@ -188,15 +188,21 @@ ec_set_wakup_mask() {
 # TODO: Plot this vs known Vin across multiple XO's under different loads.
 
 ec_get_Vin() {
+	local bH
+	local bL
 	if [[ $XO_VERSION = "1" ]]; then
-		echo "0"
-		return
+		bH=0
+		bL=0	
 	elif [[ $XO_VERSION = "1.75" ]]; then
 		printf "5c:2 \n" > $ec_cmds
+		read bL bH < $ec_cmds
+		bL=${bL%,}
 	else
 		printf "42:1 \n" > $ec_cmds
+		read bL < $ec_cmds
+		bH=0
 	fi
-	printf "%s %s" $(< $ec_cmds )
+	echo $(( (0x$bH << 8 ) + 0x$bL ))
 }
 
 echo "Starting log $LOGFILE"
