@@ -154,7 +154,7 @@ class PwrLogfile:
 
 		return (result,0)
 
-	def read_file(self,filename):
+	def read_file(self,filename,builds=[],serials=[],xovers=[]):
 		data = []
 		if os.stat(filename).st_size == 0:
 			return False
@@ -195,6 +195,23 @@ class PwrLogfile:
 		except:
 			print 'Read error in %s line: %d' % (filename,reader.line_num)
 
+		if len(builds) > 0:
+			found = False
+			buildstr = self.header['BUILD'].lower()
+			for each in builds:
+				if each in buildstr:
+					found = True
+					break
+			if not found:
+				return False
+
+		if len(serials) > 0:
+			if not (self.header['SERNUM'].upper() in serials):
+				return False
+
+		if len(xovers) > 0:
+			if not self.header['XOVER'] in xovers:
+				return False
 
 		# Set the local timzone for where the data came from
 		try:
@@ -358,6 +375,18 @@ def process_logs(filenames,opt):
 	title_append	 	= opt.title
 	show_acr_trend		= opt.acrtrend
 	ignore_date_before	= False
+	serial_numbers		= []
+	build_list		= []
+	xover_list		= []
+
+	if opt.build:
+		build_list	= [ x.lower() for x in opt.build.split(',') ]
+
+	if opt.sernum:
+		serial_numbers	= [ x.upper() for x in opt.sernum.split(',') ]
+
+	if opt.xover:
+		xover_list 	= opt.xover.split(',')
 
 	if opt.dignore:
 		try:
@@ -509,12 +538,12 @@ def process_logs(filenames,opt):
 #		ax12_2 = fig12.add_subplot(212)
 
 	for filename in filenames:
-		read_result = pl.read_file(filename)
+		read_result = pl.read_file(filename,builds=build_list,serials=serial_numbers,xovers=xover_list)
 
 		if debug_show_filenames:
 			print filename
 			if not read_result:
-				print "Skipped because of data error"
+				print "Skipped"
 
 		if not read_result:
 			continue
@@ -678,6 +707,16 @@ def main():
 		help="Plot net ACR trend per battery")
 	parser.add_argument('--dignore',
 		help="Ignore dates eariler than this for ACR trend")
+	parser.add_argument('--byxo', action='store_true',default=False,
+		help="Break plots into per machine type")
+	parser.add_argument('--voltcur', action='store_true',default=False,
+		help="Plot voltage and current vs time")
+	parser.add_argument('--build', action='store',type=str,default=None,
+		help="Only plot files with the OS build containing the substring. Multiple strings in a quoted csv string")
+	parser.add_argument('--sernum', action='store',type=str,default=None,
+		help="Only plot files matching serial numbers.  Multiple SN's can be in a quoted csv string")
+	parser.add_argument('--xover', action='store',type=str,default=None,
+		help="Only plot files matching XO generation. [1|1.5|1.75|4]  Multiple generations can be in a quoted csv string")
 
 	args = parser.parse_args()
 
