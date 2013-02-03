@@ -444,21 +444,27 @@ def process_logs(filenames,opt):
 		if title_append:
 			title = title + (' (%s)' % title_append)
 		ax3.set_title(title)
+		ax3.grid()
+		ax3.minorticks_on()
 		figures.append(fig3)
 
 	if show_voltcur:
 		fig4 = figure()
 		ax4 = fig4.add_subplot(211)
+		ax4.grid()
 		title = 'Voltage vs Time'
 		if title_append:
 		    title = title + (' (%s)' % title_append)
 		ax4.set_title(title)
+		ax4.set_ylabel('Volts')
 
 		ax4_2 = fig4.add_subplot(212)
 		title = 'Current vs Time'
 		if title_append:
 		    title = title + (' (%s)' % title_append)
 		ax4_2.set_title(title)
+		ax4_2.grid()
+		ax4_2.set_ylabel('mA')
 		figures.append(fig4)
 
 	if show_todpwr:
