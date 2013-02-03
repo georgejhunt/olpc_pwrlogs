@@ -433,6 +433,8 @@ def process_logs(filenames,opt):
 		figures.append(fig2)
 
 	if show_instpwr:
+		if not opt.voltcur:
+			show_voltcur = 0
 		fig3 = figure()
 		ax3 = fig3.add_subplot(111)
 		ax3.set_xlabel('Delta Time (Hours)')
