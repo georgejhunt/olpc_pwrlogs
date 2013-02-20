@@ -5,15 +5,25 @@
 set -u
 
 # The duty cycle for the web fetch portion of the test
-# its in percent.  The loop time is 1 minute so a value of 50
-# means that we will fetch the file for 30 seconds and then
-# suspend for 30.
+# its in percent.  This controls how much of the
+# loop time is spend fetching data rather than
+# suspending.
 
 WEB_DUTY_CYCLE=50
 
+# The host used to fetch the data from and do a ping check to see
+# if we really are on-line.
+NET_HOSTNAME="dev.laptop.org"
+
+# Total loop time of the fetch/suspend loop
+# in seconds.
+
+LOOP_BASE=120
+QUICK_RUN_TIME=720
+
 # These are used by the logfile header
 PRGNAME="olpc-batlife"
-VERSION="0.1.0"
+VERSION="0.1.7"
 
 echo -n "$PRGNAME Ver: $VERSION starting at "
 echo `date`
@@ -37,12 +47,54 @@ else
 fi
 
 SKIP_VIDEO_TEST="false"
-if [ ${1-0} = "skipvideo" ]; then
-	SKIP_VIDEO_TEST="true"
-fi
+SKIP_NETWORK_TEST="false"
+SKIP_BASELINE_TEST="false"
+SKIP_CLOCK_TEST="false"
+SKIP_ETOYS_TEST="false"
+QUICK_TEST="false"
+
+until [ -z "${1:-}" ]
+do
+	if [ ${1:-0} = "skipvideo" ]; then
+		SKIP_VIDEO_TEST="true"
+	fi
+
+	if [ ${1:-0} = "skipnet" ]; then
+		SKIP_NETWORK_TEST="true"
+	fi
+
+	if [ ${1:-0} = "skipbase" ]; then
+		SKIP_BASELINE_TEST="true"
+	fi
+
+	if [ ${1:-0} = "skipclock" ]; then
+		SKIP_CLOCK_TEST="true"
+	fi
+
+	if [ ${1:-0} = "skipetoys" ]; then
+		SKIP_ETOYS_TEST="true"
+	fi
+
+	if [ ${1:-0} = "quick" ]; then
+		QUICK_TEST="true"
+	fi
+
+	if [ ${1:-0} = "netonly" ]; then
+		SKIP_VIDEO_TEST="true"
+		SKIP_BASELINE_TEST="true"
+		SKIP_ETOYS_TEST="true"
+	fi
+
+	shift
+done
 
 # We use this for powerd realated flags.
 MY_PID=$$
+
+function get_timestamp
+{
+    echo `date +%s`
+}
 
 # Make sure that if we exit via ctrl-C that
 # charging gets turned back on.
@@ -53,8 +105,56 @@ function cleanup
 }
 trap cleanup SIGINT
 
+online_check()
+{
+	for l in {1..4}; do
+		$(nm-online -t 10 -q)
+		if [ $? -eq 0 ]; then
+			# Interface seems present and up. But are we really online?
+			sudo ping -c 1 $NET_HOSTNAME &> /dev/null
+			if [ $? -eq 0 ]; then
+				echo 0
+				return
+			fi
+		fi
+	done
+	echo 1
+}
+
+wait_for_online()
+{
+    local lc=0
+    local bfh=0
+    while true; do
+	if [ $(online_check) -eq 0 ]; then
+		break
+	else
+		printf "$(get_timestamp) : Run Loop: $1 : Count: $lc : Network is Offline               \n" >&2
+		sudo sh -c  "echo batlife: $(get_timestamp) : Run Loop: $1 : Count: $lc : Network is Offline > /dev/kmsg"
+	fi
+	lc=$(( $lc+1 ))
+
+	if [ $lc -gt 5 ]; then
+		printf "\n$(get_timestamp) : Run Loop: $1 : Network seems permanently offline Applying BFH\n" >&2
+		sudo sh -c "echo batlife: $(get_timestamp) : Run Loop $1 : Network seems permanently offline. Applying BFH > /dev/kmsg"
+		sudo rtcwake --seconds 10 --mode mem > /dev/null 2>/dev/null
+		lc=0
+		bfh=$(( $bfh+1 ))
+	fi
+
+	if [ $bfh -gt 5 ]; then
+		printf "$(get_timestamp) : Run Loop $1 : BFH seems to have failed\n" >&2
+		sudo sh -c "echo batlife: $(get_timestamp) : Run Loop $1 : BFH seems to have failed > /dev/kmsg"
+		exit 1
+	fi
+    done
+}
+
 function video_test()
 {
+
+	TEST_TIME=${1:-1800}
+	echo "Starting camera/video test"
 	sh /runin/runin-camera > /dev/null 2>&1 &
 	CAMERA_PID=$!
 	TSTART=$(get_timestamp)
@@ -64,6 +164,7 @@ function video_test()
 
 	while true
 	do
+	    sleep 60
 	    take_reading
 	    log_reading
 	    VOLT_100s=$(( ${VOLT}/10000 ))
@@ -71,8 +172,7 @@ function video_test()
 	    WATTS_100s=$(( $W_SAMPLE/10 ))
 	    WATTS_STR=$(format_hundreds_as_n.nn $WATTS_100s)
 	    printf "SOC: %d %%, Runtime: %d minutes, Net mAh: %d , Watts: %s W\n"  $CAPLEVEL $NET_MINUTES $MAh_NET $WATTS_STR
-	    sleep 60
-	    if [ $(diff_time $TSTART) -gt 3600 ]; then
+	    if [ $(diff_time $TSTART) -gt ${TEST_TIME} ]; then
 		break
 	    fi
 	done
@@ -103,6 +203,158 @@ function do_reading_with_stat()
     printf "SOC: %d %%, Runtime: %d minutes, Net mAh: %d , Watts: %s W\n"  $CAPLEVEL $NET_MINUTES $MAh_NET $WATTS_STR
 }
 
+function baseline_test()
+{
+	TEST_TIME=${1:-1800}
+	echo "Starting Baseline test of $TEST_TIME seconds"
+	TSTART=$(get_timestamp)
+
+	take_reading
+	log_reading
+
+	while true
+	do
+	    sleep 60
+	    do_reading_with_stat
+	    if [ $(diff_time $TSTART) -gt ${TEST_TIME} ]; then
+		break
+	    fi
+	done
+}
+
+function clock_test()
+{
+	echo "Starting Clock activity test"
+	TEST_TIME=${1:-1800}
+	TSTART=$(get_timestamp)
+
+	take_reading
+	log_reading
+
+	sugar-launch tv.alterna.Clock &> /dev/null &
+	while true
+	do
+	    sleep 60
+	    do_reading_with_stat
+	    if [ $(diff_time $TSTART) -gt ${TEST_TIME} ]; then
+		break
+	    fi
+	done
+	# Stop time.
+	kill `ps x -F | grep "[C]lockActivity" | tr -s ' ' | cut -d' ' -f2`
+}
+
+function etoys_test()
+{
+	echo "Starting Etoys activity test"
+	TEST_TIME=${1:-1800}
+	TSTART=$(get_timestamp)
+
+	take_reading
+	log_reading
+
+	sugar-launch org.vpri.EtoysActivity &> /dev/null &
+	while true
+	do
+	    sleep 60
+	    do_reading_with_stat
+	    if [ $(diff_time $TSTART) -gt ${TEST_TIME} ]; then
+		break
+	    fi
+	done
+	# Stop time.
+	kill `ps x -F | grep "[o]rg.vpri.EtoysActivity" | tr -s ' ' | cut -d' ' -f2`
+}
+
+
+function net_test()
+{
+
+	DOWNLOAD_SECONDS=$(( (${LOOP_BASE}*${WEB_DUTY_CYCLE}*100)/10000 ))
+	SUSPEND_SECONDS=$(( ${LOOP_BASE}-${DOWNLOAD_SECONDS} ))
+
+	echo "Fetching for ${DOWNLOAD_SECONDS} seconds suspending for ${SUSPEND_SECONDS} seconds"
+
+	take_reading
+	log_reading
+
+	rl=0
+	while true
+	do
+	    TSTART=$(get_timestamp)
+	    i=0
+	    PREV_ERROR=0
+	    while [ $(diff_time ${TSTART}) -lt ${DOWNLOAD_SECONDS} ]
+	    do
+
+		wait_for_online $rl
+
+		ERROR=0
+		DL_SPEED=$(curl -w "%{speed_download}" -Ss -m 10 http://${NET_HOSTNAME}/~rsmith/batlife.dat -o /dev/null)
+		CURL_RET=$?
+
+		if [ $PREV_ERROR -ne $CURL_RET ]; then
+			echo
+			sudo sh -c "echo batlife: $(get_timestamp) : Run Loop: $rl : Curl error: $CURL_RET > /dev/kmsg"
+		fi
+		case ${CURL_RET} in
+			# Don't output anthing on a good fetch
+			0 )
+				ERROR=0
+				;;
+			6 )
+				printf "$(get_timestamp) : Run Loop: $rl : Count: $i : DNS resolve error.         \n" >&2
+				ERROR=1
+				;;
+			* )
+				printf "$(get_timestamp) : Run Loop: $rl : Count: $i : Curl error: $CURL_RET      \n" >&2
+				ERROR=1
+				;;
+		esac
+		PREV_ERROR=$CURL_RET
+		i=$(( $i+1 ))
+	    done
+
+	    do_reading_with_stat
+
+#	    if [ $ERROR -eq 1 ]; then
+#		echo
+#	    fi
+
+	    TSTART=$(get_timestamp)
+	    i=0
+	    while [ $(diff_time ${TSTART}) -lt ${SUSPEND_SECONDS} ]
+	    do
+		TELAPSED=$(diff_time ${TSTART})
+		TSUS=$(( ${SUSPEND_SECONDS} - ${TELAPSED} ))
+		if [ ${TSUS} -lt 0 ]; then
+			TSUS=0
+		fi
+		wait_for_online $rl
+
+		sudo sh -c "echo batlife: $(get_timestamp) : Run loop: $rl : Sus loop: $i > /dev/kmesg"
+		# We have to set a wakeup source or the wlan will lose power in suspend
+		shopt -s nullglob
+		ETH_MSG=$(sudo ethtool -s eth0 wol u 2>&1)
+		if [ "$ETH_MSG" ]; then
+			echo "ethtool err: $ETH_MSG                                                       \n"
+		fi
+		sudo rtcwake --seconds ${TSUS} --mode mem > /dev/null 2>/dev/null
+		i=$(( $i+1 ))
+	    done
+	    do_reading_with_stat
+	    rl=$(( $rl+1 ))
+	done
+}
+
+# Tell powerd not to suspend since this script will manage that and
+# prevent it from dimming the backlight
+
+touch /var/run/powerd-inhibit-suspend/$MY_PID
+if [ -e /var/run/powerd-inhibit-dim ]; then
+	touch /var/run/powerd-inhibit-dim/$MY_PID
+fi
+
 pwrlog_module_init
 
 echo "Waiting for a battery"
@@ -121,71 +373,84 @@ if  [[ "${EXTPWR_STATUS}" == "1" ]]; then
    done
 fi
 
-# Tell powerd not to suspend since this script will maange that and
-# prevent it from dimming the backlight
-
-touch /var/run/powerd-inhibit-suspend/$MY_PID
-if [ -e /var/run/powerd-inhibit-dim ]; then
-	touch /var/run/powerd-inhibit-dim/$MY_PID
-fi
 
 FDATE=`date "+%y%m%d-%H%M%S"`
 HOST=`hostname -s`
-LOGFILE="blife-$DS_SERNUM-$FDATE.csv"
+LOGFILE="blife-$FDATE-$DS_SERNUM.csv"
+SYSSTAT_FILE="sar-$FDATE-$DS_SERNUM.bin"
+SYSSTAT_PID=0
+
+if [ -e /usr/lib/sa/sadc ]; then
+	sudo /usr/lib/sa/sadc 30 $SYSSTAT_FILE &
+	SYSSTAT_PID=$!
+fi
+
 pwrlog_write_header
 init_readings
 
-# First we do 1 hour of camera/video for a high power metric.
+# Start with a short baseline test
+if [ $SKIP_BASELINE_TEST != "true" ]; then
+	# Skip first baseline on a quick test
+	if [ $QUICK_TEST != "true" ]; then
+		baseline_test 900
+	fi
+fi
 
+# Now do a camera/video for high power test.
 if [ $SKIP_VIDEO_TEST != "true" ]; then
-	video_test
+	if [ $QUICK_TEST = "true" ]; then
+		video_test $QUICK_RUN_TIME
+	else
+		video_test
+	fi
+fi
+
+
+# Etoys. Medium power. (some graphics, some cpu)
+# Etoys runs the car project by default when you load
+if [ $SKIP_ETOYS_TEST != "true" ]; then
+	if [ $QUICK_TEST = "true" ]; then
+		etoys_test $QUICK_RUN_TIME
+	else
+		etoys_test
+	fi
+
+fi
+
+# Then clock test.
+# The clock test turns out not be that much more than
+# baseline idle (on XO4) so skip it for now.
+#if [ $SKIP_CLOCK_TEST != "true" ]; then
+#	if [ $QUICK_TEST = "true" ]; then
+#		clock_test 600
+#	else
+#		clock_test
+#	fi
+#fi
+
+# Then a baseline idle test
+if [ $SKIP_BASELINE_TEST != "true" ]; then
+	if [ $QUICK_TEST = "true" ]; then
+		baseline_test $QUICK_RUN_TIME
+	else
+		baseline_test
+	fi
 fi
 
 # Next we do a loop of fetching a 1MiB file from dev.laptop.org and then a suspend
 # until powerd shuts us down.
 
-INTFACE_DELAY=1
-LOOP_BASE=120
-DOWNLOAD_SECONDS=$(( (${LOOP_BASE}*${WEB_DUTY_CYCLE}*100)/10000 ))
-SUSPEND_SECONDS=$(( ${LOOP_BASE}-${DOWNLOAD_SECONDS} ))
-
-echo "Fetching for ${DOWNLOAD_SECONDS} seconds suspending for ${SUSPEND_SECONDS} seconds"
-take_reading
-log_reading
- 
-while true
-do
-    TSTART=$(get_timestamp)
-    i=0
-    while [ $(diff_time ${TSTART}) -lt ${DOWNLOAD_SECONDS} ]
-    do
-	DL_SPEED=`curl -w "%{speed_download}" -Ss -m 10 http://dev.laptop.org/~rsmith/batlife.dat -o /dev/null`
-	CURL_RET=$?
-	if [ $? -eq 0 ]; then
-		printf "Fetch count: $i Speed: $DL_SPEED \r" >&2
-	else
-		printf "\nCurl error: $CURL_RET count $i                 \r" >&2
+if [ $SKIP_NETWORK_TEST != "true" ]; then
+	if [ $QUICK_TEST != "true" ]; then
+		net_test
 	fi
-	i=$(( $i+1 ))
-    done
-    echo
-    do_reading_with_stat
+fi
 
-    TSTART=$(get_timestamp)
-    i=0
-    while [ $(diff_time ${TSTART}) -lt ${SUSPEND_SECONDS} ]
-    do
-	printf "Sus loop: $i   \r" >&2
-	# We have to set a wakeup source or the wlan will lose power in suspend
-	sudo ethtool -s eth0 wol u
-	sudo rtcwake --seconds 10 --mode mem > /dev/null 2>/dev/null
-	i=$(( $i+1 ))
-	# It takes some time for the interface to show back up after a resume
-	sleep $INTFACE_DELAY
-    done
-    echo
-    do_reading_with_stat
-done
+if [ $SYSSTAT_PID -gt 0 ]; then
+	sudo kill $SYSSTAT_PID
+fi
 
 echo -n "$PRGNAME ending at "
 echo `date`
+
+exit
