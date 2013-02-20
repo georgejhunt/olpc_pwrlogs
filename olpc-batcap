@@ -7,7 +7,7 @@
 
 # These are used by the logfile header
 PRGNAME="olpc-batcap"
-VERSION="0.1.3"
+VERSION="0.2.5"
 
 echo -n "$PRGNAME Ver: $VERSION starting at "
 echo `date`
@@ -31,15 +31,12 @@ function cleanup
 
 trap cleanup SIGINT
 
-# Disable powerd daemon.  Needs to be done early before
-# checking for a battery.  Otherwise powerd can put you
-# to sleep while waiting for a battery.
+echo "Disabling powerd daemon"
 
-POWERD_STATUS=` status powerd | awk '{print $2}' `
-echo "Powerd status : $POWERD_STATUS"
-if [[ "$POWERD_STATUS" != "stop/waiting" ]]; then
-    echo "Disable power daemon"
-    sudo stop powerd
+if [ -e /usr/bin/systemctl ]; then
+	sudo systemctl stop powerd.service
+else
+	sudo stop powerd
 fi
 
 pwrlog_module_init
@@ -49,8 +46,14 @@ wait_for_battery
 echo "Reading battery info"
 pwrlog_battery_init
 
-BATTERY_FULL_FLAG_DOWN=92
 BATTERY_LOW_VOL=5100000
+
+get_chemistry BATTERY_CHEM
+
+if [[ "${BATTERY_CHEM}" == "NiMH" ]]; then
+	echo "NiMH Chemistry detected"
+	BATTERY_LOW_VOL=5180000
+fi
 
 echo
 echo "PRECHARGE"
@@ -91,10 +94,12 @@ do
     get_sta BATTERY_STATUS
     get_cur BATTERY_CUR
     get_vol BATTERY_VOL
+    get_temp BATTERY_TEMP
     VOLT_100s=$(( ${BATTERY_VOL}/10000 ))
     VOLT_STR=$(format_hundreds_as_n.nn $VOLT_100s)
+    TEMP_STR=$(format_hundreds_as_n.nn $BATTERY_TEMP)
 
-    echo "Precharge: SOC: ${BATTERY_SOC} : Current: $(( ${BATTERY_CUR}/1000 )) mA : Voltage: ${VOLT_STR} V "
+    echo "Precharge: SOC: ${BATTERY_SOC}, $(( ${BATTERY_CUR}/1000 )) mA,  ${VOLT_STR} V, ${TEMP_STR} degC "
 
     if [[ ${BATTERY_STATUS} == "Full" ]]; then
 	echo "Battery status: ${BATTERY_STATUS}"
@@ -103,7 +108,7 @@ do
     sleep 5
 done
 
-# Accuracy of the sensor is +/- 2 degC.  I'd like to have this number lower but I found 
+# Accuracy of the sensor is +/- 2 degC.  I'd like to have this number lower but I found
 # testing at the OLPC office that many of the batterys can sit for very long periods
 # waiting for the temp to decrease. (Office temp 25-30 deg C)
 # TODO: Change this to and adaptive scheme. So it will work regardless of the ambient
@@ -142,11 +147,17 @@ set_backlight_full
 
 # Set the discharge current by running a few other tasks.
 # The current draw can be changed by changing the master volume
-# level.  83% works out to ~850mA and 70% is ~700mA.
+# level.
+# For 1.75 83% works out to ~850mA and 70% is ~700mA.
 
-amixer set Speaker 100% unmute /dev/null
-amixer set Master 83% unmute > /dev/null
-gst-launch audiotestsrc volume=1 freq=100 ! audioconvert ! alsasink > /dev/null 2>&1 &
+if [[ $XO_VERSION == "4" ]]; then
+	amixer set Master 0% unmute > /dev/null
+else
+	amixer set Speaker 100% unmute > /dev/null
+	amixer set Master 83% unmute > /dev/null
+fi
+
+gst-launch audiotestsrc volume=1 freq=100 ! audio/x-raw-int, width=16, channels=2 ! alsasink > /dev/null 2>&1 &
 AUDIO_PID=$!
 # Give audio maximum prioity so it does not skip.
 sudo chrt -p 99 $AUDIO_PID
@@ -167,16 +178,18 @@ do
     VOLT_100s=$(( ${VOLT}/10000 ))
     VOLT_STR=$(format_hundreds_as_n.nn $VOLT_100s)
     get_cur BATTERY_CUR
-    printf "Discharge: SOC: %d %%, Consumption : %d mAh, Voltage : %s V, Current %d mA\n"  $CAPLEVEL $MAh_NET $VOLT_STR $(( ${BATTERY_CUR}/1000 ))
+    get_temp BATTERY_TEMP
+    TEMP_STR=$(format_hundreds_as_n.nn $BATTERY_TEMP)
+    printf "Discharge: SOC: %d %%, %4d mAh, %s V, %4d mA, %s degC\n"  $CAPLEVEL $MAh_NET $VOLT_STR $(( ${BATTERY_CUR}/1000 )) $TEMP_STR
 
     if [[ ( $VOLT -le ${BATTERY_LOW_VOL} ) ]]; then
        echo "Low voltage threshold reached. Test Complete."
        break
     fi
 
-    if [[ (${VOLT} -le 5400000) && (${VOLT} -ge 5200000) ]]; then
+    if [[ (${VOLT} -le 5400000) && (${VOLT} -ge 5250000) ]]; then
         sleep 5
-    elif [[ ( ${VOLT} -le 5200000 ) ]]; then
+    elif [[ ( ${VOLT} -le 5250000 ) ]]; then
 	sleep 1
     else
         sleep 20
@@ -208,10 +221,11 @@ do
     take_reading
     log_reading
     VOLT_100s=$(( ${VOLT}/10000 ))
-    VOLT_INT=$(( ${VOLT_100s}/100 ))
-    VOLT_FRAC=$(( ${VOLT_100s} - ( ${VOLT_INT}*100 ) ))
+    VOLT_STR=$(format_hundreds_as_n.nn $VOLT_100s)
     get_cur BATTERY_CUR
-    printf "SOC: %d %%, Net mAh: %d , Voltage : %d.%02d V, Current %d mA\n"  $CAPLEVEL $MAh_NET $VOLT_INT $VOLT_FRAC $(( ${BATTERY_CUR}/1000 ))
+    get_temp BATTERY_TEMP
+    TEMP_STR=$(format_hundreds_as_n.nn $BATTERY_TEMP)
+    printf "Charge: SOC: %d %%, %4d mAh, %s V, %4d mA, %s degC\n"  $CAPLEVEL $MAh_NET $VOLT_STR $(( ${BATTERY_CUR}/1000 )) $TEMP_STR
 
     if [[ ${STAT} == "Full" ]]; then
         echo "Charge complete. Exiting"
