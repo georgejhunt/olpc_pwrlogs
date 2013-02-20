@@ -324,6 +324,10 @@ get_extpwr() {
     eval "$1=$(< /sys/class/power_supply/olpc-ac/online)"
 }
 
+get_chemistry() {
+    eval "$1=$(< $B_INFO/technology)"
+}
+
 function take_reading
 {
 	get_soc CAPLEVEL
