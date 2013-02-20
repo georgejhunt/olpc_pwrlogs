@@ -123,6 +123,11 @@ def pretty_out(data):
 		retval.append('%12.3f' % data[each])
 	return retval
 
+def gnuplot_out(data):
+	retval = []
+	retval.append('%f %f' % (data['Th'],data['Watts'] ) )
+	return retval
+
 def usage():
 	print 'process-pwr_log <options> <files>'
 	print "-b, --batsort :  output bat sernum rather than filename for the summary info"
@@ -184,8 +189,10 @@ show_cvpoint = 0
 cv_acr = 0
 cv_point_reached = 0
 make_process_file = 0
+gnuplot = 0
+
 try:
-	opts, args = getopt.getopt(sys.argv[1:], "hbsfTcxpnqdzeEvP", ["batsort", "help", "sersort", "showfile", "tabs", "comment","xo_ver","positive","negative", "quiet", "datesort", "ztest","include-errors","only-errors","cvpoint","process"])
+	opts, args = getopt.getopt(sys.argv[1:], "hbsfTcxpnqdzeEvPg", ["batsort", "help", "sersort", "showfile", "tabs", "comment","xo_ver","positive","negative", "quiet", "datesort", "ztest","include-errors","only-errors","cvpoint","process","gnuplot"])
 except getopt.GetoptError, err:
 	# print help information and exit:
 	print str(err) # will print something like "option -a not recognized"
@@ -227,6 +234,8 @@ for o, a in opts:
 		show_cvpoint = 1
 	elif o in ("-x", "--xo_ver"):
 		showxo	= 1
+	elif o in ("-g","--gnuplot"):
+		gnuplot = 1
 	elif o in ("-z","--ztest"):
 		print a
 		sys.exit(1)
@@ -283,13 +292,14 @@ for filename in filenames:
 
 	output_filename = "processed-"+ os.path.splitext(filename)[0] + ".csv"
 	if make_process_file:
-		writer = csv.writer(open(output_filename, "wb"))
+		writer = csv.writer(open(output_filename, "wb"),quoting=csv.QUOTE_NONE)
 
 	reader = csv.reader(open(filename,"rb"))
 	try:
 		for row in reader:
 			if make_process_file:
-				writer.writerow(row)
+				if not gnuplot:
+					writer.writerow(row)
 			if not row:
 				continue
 			try:
@@ -413,7 +423,8 @@ for filename in filenames:
 	for each in result_items:
 		header.append("%12s" % result_headers[each])
 	if make_process_file:
-		writer.writerow(header)
+		if not gnuplot:
+			writer.writerow(header)
 
 	# Starting point for relative measuements
 	Tz = converted[SEC]
@@ -445,7 +456,13 @@ for filename in filenames:
 	cv_acr = 0
 	cv_time = 0
 	if make_process_file:
-		writer.writerow(pretty_out(result))
+		if gnuplot:
+			out = []
+			out.append('#xo:%s | build:%s' % (xo_ver,build_no))
+			writer.writerow(out)
+			writer.writerow(gnuplot_out(result))
+		else:
+			writer.writerow(pretty_out(result))
 	converted_prev = converted[:]
 	# Short log files generated from powerd often don't have enough data in them to meet
 	# minimum sample period for good power readings.  If we get one of those files then
@@ -498,7 +515,15 @@ for filename in filenames:
 
 		converted_prev = converted[:]
 		if make_process_file:
-			writer.writerow(pretty_out(result))
+			if gnuplot:
+				writer.writerow(gnuplot_out(result))
+			else:
+				writer.writerow(pretty_out(result))
+
+	# Blank lines separate datasets in gnuplot
+	if gnuplot:
+		writer.writerow('');
+		writer.writerow('');
 
 	# If the sample period is not enough or the power numbers have impossible
 	# values in them then don't include this file in the summary
@@ -512,6 +537,7 @@ for filename in filenames:
 	if only_errors:
 		if time_period_valid and power_output_valid:
 			continue
+
 
 	# Summary of the run
 	summary = []
