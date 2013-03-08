@@ -447,6 +447,10 @@ def process_logs(filenames,opt):
 			title = title + (' (%s)' % title_append)
 		ax3.set_title(title)
 		ax3.grid()
+		minorTick = MultipleLocator(.1)
+		majorTick = MultipleLocator(.5)
+		ax3.yaxis.set_minor_locator(minorTick)
+		ax3.yaxis.set_major_locator(majorTick)
 		ax3.minorticks_on()
 		figures.append(fig3)
 
