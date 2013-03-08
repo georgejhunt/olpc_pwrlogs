@@ -7,7 +7,7 @@
 
 # These are used by the logfile header
 PRGNAME="olpc-batcap"
-VERSION="0.2.5"
+VERSION="0.3.0"
 
 echo -n "$PRGNAME Ver: $VERSION starting at "
 echo `date`
@@ -25,6 +25,8 @@ fi
 # charging gets turned back on.
 function cleanup
 {
+#	echo "cleanup, unblock wifi"
+#	sudo rfkill unblock wifi
 	enable_charging
 	exit
 }
@@ -38,6 +40,11 @@ if [ -e /usr/bin/systemctl ]; then
 else
 	sudo stop powerd
 fi
+
+# Turn off the wireless device.
+# Doesn't work on XO4 so don't use
+#echo "Powering off wireless"
+#sudo rfkill block wifi
 
 pwrlog_module_init
 
