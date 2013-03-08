@@ -450,6 +450,24 @@ def process_logs(filenames,opt):
 		ax3.minorticks_on()
 		figures.append(fig3)
 
+	if show_cur:
+		if not opt.voltcur:
+			show_voltcur = 0
+		fig9=figure()
+		ax9 = fig9.add_subplot(111)
+		if show_raw_data:
+		    title = 'Current vs Time'
+		else:
+		    title = 'Current (filtered) vs Time'
+		if title_append:
+		    title = title + (' (%s)' % title_append)
+		ax9.set_title(title)
+		ax9.set_xlabel('Delta Time (Hours)')
+		ax9.set_ylabel('Current (mA)')
+		ax9.grid()
+		figures.append(fig9)
+
+
 	if show_voltcur:
 		fig4 = figure()
 		ax4 = fig4.add_subplot(211)
@@ -504,19 +522,6 @@ def process_logs(filenames,opt):
 			ax8.xaxis.set_minor_locator(minorTick)
 		ax8.grid()
 		figures.append(fig8)
-	if show_cur:
-		fig9=figure()
-		ax9 = fig9.add_subplot(111)
-		if show_raw_data:
-		    title = 'Current vs Time'
-		else:
-		    title = 'Current (filtered) vs Time'
-		if title_append:
-		    title = title + (' (%s)' % title_append)
-		ax9.set_title(title)
-		ax9.set_xlabel('Delta Time (Hours)')
-		ax9.set_ylabel('Current (mA)')
-		figures.append(fig9)
 
 	if show_wavg_vs_acr:
 		fig10=figure()
