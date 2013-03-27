@@ -1,0 +1,23 @@
+#!/bin/sh
+
+VERSION=0.0.1
+FDATE=`date "+%y%m%d-%H%M%S"`
+HOST=`hostname -s`
+LOGFILE="wu-$FDATE.csv"
+
+echo "Starting log $LOGFILE"
+echo
+
+echo "wu_log Ver: $VERSION" > $LOGFILE
+echo -n "HOST: " >> $LOGFILE
+echo $HOST  >> $LOGFILE
+echo -n "DATE: " >> $LOGFILE
+echo `date` >> $LOGFILE
+
+# Allow the addition of some descriptive text from the cmd line
+echo -n "COMMENT: " >> $LOGFILE
+echo $1 >> $LOGFILE
+echo "<StartData>" >> $LOGFILE
+
+#wattsup -c 12000 -S -e ttyUSB1 watts power-factor | tee -a $LOGFILE
+./pyWattsup.py -u 10 -d 1 -p /dev/ttyUSB2 | tee -a $LOGFILE
