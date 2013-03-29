@@ -125,7 +125,7 @@ class Readings():
 	def print_last_reading_csv(self):
 		first = self.history[0]
 		r = self.history[-1]
-		print "%.1f, %.3f, %5.1f, %5.4f, %4.2f, %5.4f" % (r['READTIME'],(r['READTIME']-first['READTIME'])/3600,r['TOT_WATTAGE'],r['WATTAGE'],r['PF'],r['WATTSECONDS']/3600)
+		print "%.1f, %.3f, %5.1f, %7.4f, %4.2f, %7.4f" % (r['READTIME'],(r['READTIME']-first['READTIME'])/3600,r['TOT_WATTAGE'],r['WATTAGE'],r['PF'],r['WATTSECONDS']/3600)
 		sys.stdout.flush()
 
 if __name__ == "__main__":
