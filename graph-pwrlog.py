@@ -407,6 +407,11 @@ def process_logs(filenames,opt):
 	xover_list		= []
 	model_list		= []
 	trim			= opt.trim
+	discwh_filter		= False
+
+	if opt.discwh is not None:
+		discwh_filter = True
+		discwh_value = opt.discwh
 
 	if opt.build:
 		build_list	= [ x.lower() for x in opt.build.split(',') ]
@@ -604,6 +609,9 @@ def process_logs(filenames,opt):
 		if opt.nochg and pl.darray.wavg[-1] > 0:
 			continue
 
+		if discwh_filter and pl.darray.discwh[-1] > discwh_value:
+			continue
+
 		end = len(pl.darray.watts)-trim
 
 		if show_avgpwr:
@@ -783,6 +791,8 @@ def main():
 		help="Don't plot the votage and current vs time")
         parser.add_argument('--trim', action='store',type=int,default=0,
                 help='Number of readings to trim from the end')
+	parser.add_argument('--discwh', action='store',type=float,default=None,
+		help='Minimum discharge Wh to show')
 
 	args = parser.parse_args()
 
