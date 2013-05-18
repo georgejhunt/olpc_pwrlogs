@@ -408,6 +408,7 @@ def process_logs(filenames,opt):
 	model_list		= []
 	trim			= opt.trim
 	discwh_filter		= False
+	show_dischist		= opt.dischist
 
 	if opt.discwh is not None:
 		discwh_filter = True
@@ -441,6 +442,7 @@ def process_logs(filenames,opt):
 	runtimes = []
 	whs	= []
 	wavgs	= []
+	discwh  = []
 	pl = PwrLogfile()
 	figures = []
 	average_ib = np.arange(1)
@@ -560,6 +562,22 @@ def process_logs(filenames,opt):
 		ax11.set_ylabel('Battery Temperature degC')
 		ax11.set_xlabel('Delta Time (Hours)')
 
+	if show_dischist:
+		if not opt.voltcur:
+			show_voltcur = 0
+		fig13 = figure()
+		ax13  = fig13.add_subplot(111)
+		if title_append:
+		    ax13.set_title('Discharge Wh Histogram\n%s' % title_append)
+		else:
+		    ax13.set_title('Discharge Wh Histogram')
+		ax13.set_xlabel('Wh')
+		ax13.set_ylabel('Runs')
+		minorTick = MultipleLocator(1)
+		ax13.xaxis.set_minor_locator(minorTick)
+		ax13.grid()
+		figures.append(fig13)
+
 	if show_acr_trend:
 		fig12 = figure()
 		ax12 = fig12.add_subplot(111)
@@ -670,6 +688,9 @@ def process_logs(filenames,opt):
 		netacrs.append(pl.darray.netacr[-1])
 		whs.append(pl.darray.wh[-1]*-1)
 		wavgs.append(pl.darray.wavg[-1]*-1)
+		# Don't add short files or files with zero Wh
+		if pl.darray.discwh[-1] < -.01:
+			discwh.append(pl.darray.discwh[-1]*-1)
 
 	if show_acrhist:
 		abs_acr = [abs(x) for x in netacrs]
@@ -729,6 +750,9 @@ def process_logs(filenames,opt):
 
 		ax12.plot(range(1,len(avg_result)+1),avg_result,'s-',linewidth=2,color='black')
 		ax12.set_xlim(left=1)
+
+	if show_dischist:
+		counts, bins, patches = ax13.hist(discwh,20,range=(0,20))
 
 	if save_graphs:
 		for each in figures:
@@ -793,6 +817,8 @@ def main():
                 help='Number of readings to trim from the end')
 	parser.add_argument('--discwh', action='store',type=float,default=None,
 		help='Minimum discharge Wh to show')
+	parser.add_argument('--dischist', action='store_true',default=False,
+		help="Histogram of discharge Wh")
 
 	args = parser.parse_args()
 
