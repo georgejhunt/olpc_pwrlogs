@@ -51,6 +51,8 @@ class PwrLogfile:
 		self.Tz	     	= 0.
 		self.ACRz	= 0.
 		self.Wh_sum	= 0.
+		self.chgwh_sum	= 0.
+		self.discwh_sum = 0.
 
 		# Results defs
 		self.Th      = 0
@@ -63,6 +65,8 @@ class PwrLogfile:
 		self.Wavg    = 7
 		self.Ttod    = 8
 		self.Zavg    = 9
+		self.ChgWh   = 10
+		self.DiscWh  = 11
 
 		# Small arrry for a place holder will will replace this once we have built the data list
 		self.darray	= np.zeros(3)
@@ -109,7 +113,7 @@ class PwrLogfile:
 		return converted
 
 	def process_data(self,converted, converted_prev, skip_short_checks=False):
-		result = [0.,0.,0.,0.,0.,0.,0.,0.,0.,0.]
+		result = [0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.]
 		dt_sample = datetime.fromtimestamp(converted[self.SEC],tz.tzutc())
 		dt_tz = dt_sample.astimezone(self.local_tz).timetuple()
 		result[self.Ttod] = float(dt_tz.tm_hour) + float(dt_tz.tm_min)/60.0
@@ -140,6 +144,12 @@ class PwrLogfile:
 		# Keep a copy of the sample Wh so we can adjust things correctly when computing
 		# the final interval
 		self.interval_Wh     =  (result[self.Watts] * result[self.Deltat] / 3600)
+
+		if self.interval_Wh > 0:
+			result[self.ChgWh]  = self.chgwh_sum  + self.interval_Wh
+		else:
+			result[self.DiscWh] = self.discwh_sum + self.interval_Wh
+
 	        result[self.Wh]      = self.Wh_sum + self.interval_Wh
 
 		if result[self.Th] != 0.0:
@@ -240,6 +250,8 @@ class PwrLogfile:
 		self.Tz   = converted_prev[self.SEC]
 		self.ACRz = converted_prev[self.ACR]
 		self.Wh_sum = 0.
+		self.chgwh_sum  = 0.
+		self.discwh_sum = 0.
 		# This keeps the division by zero error from occurring but does not generate
 		# a huge number because the ACRs are equal and you get zero for the result
 		converted_prev[self.SEC] = self.Tz-1
@@ -247,6 +259,8 @@ class PwrLogfile:
 		# Process the first line with my fabricated previous data
 		results,error = self.process_data(converted, converted_prev)
 		self.Wh_sum = results[self.Wh]
+		self.chgwh_sum  = results[self.ChgWh]
+		self.discwh_sum = results[self.DiscWh]
 		# Start real previous data
 		converted_prev = converted[:]
 
@@ -280,6 +294,8 @@ class PwrLogfile:
 				row_processed = True
 				power_data_valid = True
 				self.Wh_sum = results[self.Wh]
+				self.chgwh_sum  = results[self.ChgWh]
+				self.discwh_sum = results[self.DiscWh]
 				converted_last_full_interval = converted_prev[:]
 				converted_prev = converted[:]
 				converted.extend(results)
@@ -299,11 +315,15 @@ class PwrLogfile:
 			try:
 				# Back out the Wh sum from the record we are about to replace
 				self.Wh_sum -= self.interval_Wh
+				self.chgwh_sum -= self.interval_Wh
+				self.discwh_sum -= self.interval_Wh
 				# Compute the results from the last good intervals start until the
 				# end of the file.
 				results,error = self.process_data(converted, converted_last_full_interval)
 				power_data_valid = True
-				self.Wh_sum = results[self.Wh]
+				self.Wh_sum    = results[self.Wh]
+				self.chgwh_sum = results[self.ChgWh]
+				self.discwh_sum = results[self.DiscWh]
 				converted.extend(results)
 				# Replace the last interval calc with this new one.
 				data[-1] = converted
@@ -311,7 +331,7 @@ class PwrLogfile:
 				pass
 
 		# Add the various init things to the header info for all the net diff calcs
-		self.darray = np.rec.fromrecords(data,names='sec,soc,vb,ib,tb,acr,th,iavg,netacr,deltat,vavg,watts,wh,wavg,tod,zavg')
+		self.darray = np.rec.fromrecords(data,names='sec,soc,vb,ib,tb,acr,th,iavg,netacr,deltat,vavg,watts,wh,wavg,tod,zavg,chgwh,discwh')
 
 		if not power_data_valid:
 			return False
