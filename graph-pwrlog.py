@@ -422,11 +422,6 @@ def process_logs(filenames,opt):
 
 	pl.set_min_sample_interval(opt.compress)
 
-
-# 	Seems broken
-#	if hasattr(opt,"chg_limit"):
-#		pl.set_charge_limit(opt.chg_limit)
-
 	if save_graphs:
 		pp = PdfPages('graphs.pdf')
 
@@ -582,6 +577,9 @@ def process_logs(filenames,opt):
 		if not read_result:
 			continue
 
+		if opt.nochg and pl.darray.wavg[-1] > 0:
+			continue
+
 		if show_avgpwr:
 			ax.plot(pl.darray.th[SKIP:],pl.darray.wavg[SKIP:])
 
@@ -711,8 +709,8 @@ def main():
 	parser.add_argument('filenames', nargs='+', help='files to process')
 	parser.add_argument('--compress', action='store',type=int,default=60,
 		help='Minumum number of elapsed seconds for each datapoint')
-	parser.add_argument('--chg_limit',type=float,
-		help='Limit charge wattage')
+	parser.add_argument('--nochg',action='store_true',default=False,
+		help='Skip files with positive average wattage')
 	parser.add_argument('--debug', action='store_true',default=False,
 		help='Enabled debug output')
 	parser.add_argument('--pdf', action='store_true',default=False,
