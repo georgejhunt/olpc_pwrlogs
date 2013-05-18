@@ -460,6 +460,9 @@ def process_logs(filenames,opt):
 		ax3.yaxis.set_minor_locator(minorTick)
 		ax3.yaxis.set_major_locator(majorTick)
 		ax3.minorticks_on()
+		if opt.yrange:
+			ax3.set_ylim(opt.yrange)
+
 		figures.append(fig3)
 
 	if show_cur:
@@ -560,6 +563,9 @@ def process_logs(filenames,opt):
 		minorTick = MultipleLocator(10)
 		ax12.yaxis.set_minor_locator(minorTick)
 		ax12.grid()
+		if opt.yrange:
+			ax12.set_ylim(opt.yrange)
+
 #		ax12_2 = fig12.add_subplot(212)
 
 	for filename in filenames:
@@ -744,6 +750,8 @@ def main():
 		help="Only plot files matching XO generation. [1|1.5|1.75|4]  Multiple generations can be in a quoted csv string")
 	parser.add_argument('--model', action='store',type=str,default=None,
 		help="Only plot files matching model numbers.  Multiple models can be in a quoted csv string")
+	parser.add_argument('--yrange', action='store',type=float,default=None,nargs=2,
+		help='range values for the power (y) axis scale')
 
 	args = parser.parse_args()
 
