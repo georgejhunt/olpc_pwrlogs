@@ -329,6 +329,9 @@ def acr_trend_compare(a, b):
 	return cmp(a[0],b[0])
 
 def filter_data(series,size=5):
+	if len(series) == 0:
+		return []
+
 	# we only do odd filter sizes
 	if not (size % 2):
 		size += 1
@@ -383,6 +386,7 @@ def process_logs(filenames,opt):
 	build_list		= []
 	xover_list		= []
 	model_list		= []
+	trim			= opt.trim
 
 	if opt.build:
 		build_list	= [ x.lower() for x in opt.build.split(',') ]
@@ -580,41 +584,43 @@ def process_logs(filenames,opt):
 		if opt.nochg and pl.darray.wavg[-1] > 0:
 			continue
 
+		end = len(pl.darray.watts)-trim
+
 		if show_avgpwr:
-			ax.plot(pl.darray.th[SKIP:],pl.darray.wavg[SKIP:])
+			ax.plot(pl.darray.th[SKIP:end],pl.darray.wavg[SKIP:end])
 
 		if show_instpwr:
 			if show_raw_data:
-				ax3.plot(pl.darray.th[SKIP:],pl.darray.watts[SKIP:])
+				ax3.plot(pl.darray.th[SKIP:end],pl.darray.watts[SKIP:end])
 			else:
-				mavg = filter_data(pl.darray.watts[SKIP:])
-				ax3.plot(pl.darray.th[SKIP:],mavg)
+				mavg = filter_data(pl.darray.watts[SKIP:end])
+				ax3.plot(pl.darray.th[SKIP:end],mavg)
 		if show_voltcur:
-			ax4.plot(pl.darray.th[SKIP:],pl.darray.vb[SKIP:])
-			ax4_2.plot(pl.darray.th[SKIP:],pl.darray.ib[SKIP:])
+			ax4.plot(pl.darray.th[SKIP:end],pl.darray.vb[SKIP:end])
+			ax4_2.plot(pl.darray.th[SKIP:end],pl.darray.ib[SKIP:end])
 
 		if dont_show:
-			ax2.plot(pl.darray.soc[SKIP:],pl.darray.ib[SKIP:])
+			ax2.plot(pl.darray.soc[SKIP:end],pl.darray.ib[SKIP:end])
 
 		if show_todpwr:
-			ax5.plot(pl.darray.tod[SKIP:],pl.darray.watts[SKIP:])
+			ax5.plot(pl.darray.tod[SKIP:end],pl.darray.watts[SKIP:end])
 
 		if show_volt:
-			ax6.plot(pl.darray.th[SKIP:],pl.darray.vb[SKIP:])
+			ax6.plot(pl.darray.th[SKIP:end],pl.darray.vb[SKIP:end])
 		if show_zavg:
-			ax7.plot(pl.darray.th[SKIP:],pl.darray.zavg[SKIP:])
+			ax7.plot(pl.darray.th[SKIP:end],pl.darray.zavg[SKIP:end])
 		if show_cur:
 			if show_raw_data:
-				ax9.plot(pl.darray.th[SKIP:],pl.darray.ib[SKIP:])
+				ax9.plot(pl.darray.th[SKIP:end],pl.darray.ib[SKIP:end])
 			else:
-				mavg = filter_data(pl.darray.ib[SKIP:],5)
-				ax9.plot(pl.darray.th[SKIP:],mavg)
+				mavg = filter_data(pl.darray.ib[SKIP:end],5)
+				ax9.plot(pl.darray.th[SKIP:end],mavg)
 
 		if show_wavg_vs_acr:
 			ax10.scatter(abs(pl.darray.wavg[-1]),abs(pl.darray.netacr[-1]))
 
 		if show_temp:
-			ax11.plot(pl.darray.th[SKIP:],pl.darray.tb[SKIP:])
+			ax11.plot(pl.darray.th[SKIP:end],pl.darray.tb[SKIP:end])
 
 		if show_acr_trend:
 			use_this_point = True
@@ -755,6 +761,8 @@ def main():
 		help='range values for the power (y) axis scale')
 	parser.add_argument('--novoltcur', action='store_true',default=False,
 		help="Don't plot the votage and current vs time")
+        parser.add_argument('--trim', action='store',type=int,default=0,
+                help='Number of readings to trim from the end')
 
 	args = parser.parse_args()
 
