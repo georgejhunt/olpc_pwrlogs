@@ -12,7 +12,7 @@ function pwrlog_module_init
 	    if [[ -e $x/mfg-data ]]; then OFW=$x; break; fi
 	done
 
-        sudo mount -t debugfs none /sys/kernel/debug > /dev/null
+        sudo mount -t debugfs none /sys/kernel/debug &> /dev/null
 	ec_cmds=
 	for x in /sys/kernel/debug/olpc-ec/{cmd,generic} /sys/power/ec; do
 	    if [[ -e $x ]]; then
