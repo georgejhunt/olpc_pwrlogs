@@ -146,6 +146,15 @@ function wait_for_battery()
 	done
 }
 
+function get_battery_sernum()
+{
+	if [[ $(< $B_INFO/present ) = 1 ]]; then
+		DS_SERNUM=$(< $B_INFO/serial_number )
+	else
+		DS_SERNUM=""
+	fi
+	echo $DS_SERNUM
+}
 
 # Interesting battery info
 function pwrlog_battery_init()
