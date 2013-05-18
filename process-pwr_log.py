@@ -102,7 +102,13 @@ def process_data(line_no):
 	result['NetACR']	= converted[ACR] - ACRz
 	result['Vavg']	= (converted[Vb] + converted_prev[Vb]) / 2
 	result['Watts']	= result['Vavg'] * result['Iavg'] / 1000
-	result['Wh']	= result['Wh'] + (result['Watts'] * result['Deltat'] / 3600)
+	Wh = (result['Watts'] * result['Deltat'] / 3600)
+	result['Wh']	= result['Wh'] + Wh
+	if Wh > 0:
+		result['ChgWh'] = result['ChgWh'] + Wh
+	else:
+		result['DiscWh'] = result['DiscWh'] + Wh
+
 	result['DeltaTb'] = converted[Tb] - Tbz
 	if result['Iavg'] != 0.0:
 		result['Zavg'] = result['Vavg'] / result['Iavg']
@@ -190,9 +196,10 @@ cv_acr = 0
 cv_point_reached = 0
 make_process_file = 0
 gnuplot = 0
+terse = 0
 
 try:
-	opts, args = getopt.getopt(sys.argv[1:], "hbsfTcxpnqdzeEvPg", ["batsort", "help", "sersort", "showfile", "tabs", "comment","xo_ver","positive","negative", "quiet", "datesort", "ztest","include-errors","only-errors","cvpoint","process","gnuplot"])
+	opts, args = getopt.getopt(sys.argv[1:], "hbsfTcxpnqdzeEvPgt", ["batsort", "help", "sersort", "showfile", "tabs", "comment","xo_ver","positive","negative", "quiet", "datesort", "ztest","include-errors","only-errors","cvpoint","process","gnuplot","terse"])
 except getopt.GetoptError, err:
 	# print help information and exit:
 	print str(err) # will print something like "option -a not recognized"
@@ -236,6 +243,8 @@ for o, a in opts:
 		showxo	= 1
 	elif o in ("-g","--gnuplot"):
 		gnuplot = 1
+	elif o in ("-t", "--terse"):
+		terse = 1
 	elif o in ("-z","--ztest"):
 		print a
 		sys.exit(1)
@@ -248,10 +257,12 @@ if batsort:
 printfname(" Filename  ",summary_separator)
 printbuild(" Build ",summary_separator)
 
-if (show_cvpoint):
-	summary_header = ["Net time","Net ACR","CV ACR","CV Time","Watthrs","Min W","Max W","Avg W","Crit time","CritACR","Max temp","Temp rise","StartV","Cticks","Dticks"]
+if terse:
+	summary_header = ["Net time","Net ACR","Watthrs","Min W","Max W","Avg W","Chg Wh","Disc Wh"]
+elif show_cvpoint:
+	summary_header = ["Net time","Net ACR","CV ACR","CV Time","Watthrs","Min W","Max W","Avg W","Chg Wh","Disc Wh","Crit time","CritACR","Max temp","Temp rise","StartV","Cticks","Dticks"]
 else:
-	summary_header = ["Net time","Net ACR","Watthrs","Min W","Max W","Avg W","Crit time","CritACR","Max temp","Temp rise","StartV","Cticks","Dticks"]
+	summary_header = ["Net time","Net ACR","Watthrs","Min W","Max W","Avg W","Chg Wh","Disc Wh","Crit time","CritACR","Max temp","Temp rise","StartV","Cticks","Dticks"]
 
 for each in summary_header:
 	print '%9s%c' % (each,summary_separator) ,
@@ -259,7 +270,7 @@ print
 # Results defs
 # The order of this list is the order of output in the results file.
 # 'Line' is fixed and needs to be item 0 but all others are fungable.
-result_items = ['Line','Th','Iavg','NetACR','Deltat','Vavg','Watts','Wh','DeltaTb','DeltaACR','Zavg']
+result_items = ['Line','Th','Iavg','NetACR','Deltat','Vavg','Watts','Wh','DeltaTb','DeltaACR','Zavg','ChgWh','DiscWh']
 # Init the results_header dict
 result_headers = dict( [(i,'') for i in result_items] )
 
@@ -276,6 +287,9 @@ result_headers['DeltaACR'] = 'dACR(mA)'
 result_headers['Zavg'] = 'Zavg'
 result_headers['Cticks'] = 'Cticks'
 result_headers['Dticks'] = 'Dticks'
+result_headers['ChgWh']  = 'Chg Wh'
+result_headers['DiscWh']  = 'Dischg Wh'
+
 
 for filename in filenames:
 
@@ -439,6 +453,8 @@ for filename in filenames:
 	# Fixup the errors from the starting entry
 	result['Deltat'] = 0
 	result['Wh'] = 0
+	result['ChgWh'] = 0
+	result['DiscWh'] = 0
 	crit_start = 0
 	crit_time  = 0
 	crit_acr_start = 0
@@ -555,13 +571,18 @@ for filename in filenames:
 		summary.append(result['Wh']/result['Th'])
 	else:
 		summary.append(0.0)
-	summary.append(crit_time)
-	summary.append(crit_acr)
-	summary.append(maxTb)
-	summary.append(maxTb_rise)
-	summary.append(Vz)
-	summary.append(charge_ticks)
-	summary.append(discharge_ticks)
+
+	summary.append(result['ChgWh'])
+	summary.append(result['DiscWh'])
+
+	if not terse:
+		summary.append(crit_time)
+		summary.append(crit_acr)
+		summary.append(maxTb)
+		summary.append(maxTb_rise)
+		summary.append(Vz)
+		summary.append(charge_ticks)
+		summary.append(discharge_ticks)
 
 	if positive or negative:
 		if positive and result['NetACR'] > 0:
