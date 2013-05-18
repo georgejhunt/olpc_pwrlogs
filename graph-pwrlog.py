@@ -405,6 +405,8 @@ def process_logs(filenames,opt):
 			print "Can't parse ignore date"
 			ignore_date_before = False
 
+	if opt.novoltcur:
+		show_voltcur = 0
 
 	netacrs = []
 	runtimes = []
@@ -482,26 +484,6 @@ def process_logs(filenames,opt):
 		ax9.grid()
 		figures.append(fig9)
 
-
-	if show_voltcur:
-		fig4 = figure()
-		ax4 = fig4.add_subplot(211)
-		ax4.grid()
-		title = 'Voltage vs Time'
-		if title_append:
-		    title = title + (' (%s)' % title_append)
-		ax4.set_title(title)
-		ax4.set_ylabel('Volts')
-
-		ax4_2 = fig4.add_subplot(212)
-		title = 'Current vs Time'
-		if title_append:
-		    title = title + (' (%s)' % title_append)
-		ax4_2.set_title(title)
-		ax4_2.grid()
-		ax4_2.set_ylabel('mA')
-		figures.append(fig4)
-
 	if show_todpwr:
 		fig5 = figure()
 		ax5 = fig5.add_subplot(111)
@@ -567,6 +549,27 @@ def process_logs(filenames,opt):
 			ax12.set_ylim(opt.yrange)
 
 #		ax12_2 = fig12.add_subplot(212)
+
+	# Many options above turn off the default showing of voltage and current
+	# so this needs to be last
+	if show_voltcur:
+		fig4 = figure()
+		ax4 = fig4.add_subplot(211)
+		ax4.grid()
+		title = 'Voltage vs Time'
+		if title_append:
+		    title = title + (' (%s)' % title_append)
+		ax4.set_title(title)
+		ax4.set_ylabel('Volts')
+
+		ax4_2 = fig4.add_subplot(212)
+		title = 'Current vs Time'
+		if title_append:
+		    title = title + (' (%s)' % title_append)
+		ax4_2.set_title(title)
+		ax4_2.grid()
+		ax4_2.set_ylabel('mA')
+		figures.append(fig4)
 
 	for filename in filenames:
 		read_result = pl.read_file(filename,builds=build_list,serials=serial_numbers,xovers=xover_list,models=model_list)
@@ -752,6 +755,8 @@ def main():
 		help="Only plot files matching model numbers.  Multiple models can be in a quoted csv string")
 	parser.add_argument('--yrange', action='store',type=float,default=None,nargs=2,
 		help='range values for the power (y) axis scale')
+	parser.add_argument('--novoltcur', action='store_true',default=False,
+		help="Don't plot the votage and current vs time")
 
 	args = parser.parse_args()
 
