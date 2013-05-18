@@ -12,7 +12,7 @@ function pwrlog_module_init
 	    if [[ -e $x/mfg-data ]]; then OFW=$x; break; fi
 	done
 
-        sudo mount -t debugfs none /sys/kernel/debug
+        sudo mount -t debugfs none /sys/kernel/debug > /dev/null
 	ec_cmds=
 	for x in /sys/kernel/debug/olpc-ec/{cmd,generic} /sys/power/ec; do
 	    if [[ -e $x ]]; then
@@ -86,7 +86,7 @@ function pwrlog_module_init
 	fi
 
 	# init vaues for a few variables
-	# keeps set -u from flagging these 
+	# keeps set -u from flagging these
 	DELAY=0
 	WALL_PERIOD=0
 	COMMENT=""
@@ -140,14 +140,14 @@ function ec_get_Vin()
 
 function wait_for_battery()
 {
-	until [ $(< $B_INFO/present ) = 1 ] 
-	do 
+	until [ $(< $B_INFO/present ) = 1 ]
+	do
 		sleep 1
 	done
 }
 
 
-# Interesting battery info 
+# Interesting battery info
 function pwrlog_battery_init()
 {
 	DS_SERNUM=$(< $B_INFO/serial_number )
@@ -395,12 +395,29 @@ function set_backlight()
     		sudo sh -c "echo $1 > ${BRIGHTNESS}"
 	else
     		echo "COVERAGE: missing kernel support for backlight control (#10932)"
-	fi  
+	fi
 }
 
 function set_backlight_full()
 {
-	set_backlight 15 
+	set_backlight 15
+}
+
+function save_backlight()
+{
+    BL_BRIGHTNESS_SAVE=$(< /sys/class/backlight/dcon-bl/actual_brightness)
+}
+
+function restore_backlight()
+{
+    if [[ ! -z $BL_BRIGHTNESS_SAVE ]]; then
+	set_backlight $BL_BRIGHTNESS_SAVE
+    fi
+}
+
+function set_backlight_off()
+{
+    set_backlight 0
 }
 
 function format_hundreds_as_n.nn
@@ -410,5 +427,9 @@ function format_hundreds_as_n.nn
     if [ ${FRACV} -lt 0 ]; then
 	let "FRACV = $(( 0 - ${FRACV} ))"
     fi
-    printf "%d.%02d" ${INTV} ${FRACV}
+    if [[ (${1} -lt 0) && (${INTV} -eq 0) ]]; then
+	printf "%c%d.%02d" "-" ${INTV} ${FRACV}
+    else
+	printf "%d.%02d" ${INTV} ${FRACV}
+    fi
 }

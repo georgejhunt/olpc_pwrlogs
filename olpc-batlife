@@ -52,6 +52,7 @@ SKIP_BASELINE_TEST="false"
 SKIP_CLOCK_TEST="false"
 SKIP_ETOYS_TEST="false"
 QUICK_TEST="false"
+SKIP_SUN_TEST="true"
 
 until [ -z "${1:-}" ]
 do
@@ -76,13 +77,24 @@ do
 	fi
 
 	if [ ${1:-0} = "quick" ]; then
+		echo "Quick test enabled"
 		QUICK_TEST="true"
 	fi
 
 	if [ ${1:-0} = "netonly" ]; then
+		echo "Netonly enabled"
 		SKIP_VIDEO_TEST="true"
 		SKIP_BASELINE_TEST="true"
 		SKIP_ETOYS_TEST="true"
+	fi
+
+	if [ ${1:-0} = "sun" ]; then
+		echo "Sun test enabled"
+		SKIP_VIDEO_TEST="true"
+		SKIP_BASELINE_TEST="true"
+		SKIP_ETOYS_TEST="true"
+		SKIP_NETWORK_TEST="true"
+		SKIP_SUN_TEST="false"
 	fi
 
 	shift
@@ -101,6 +113,8 @@ function get_timestamp
 function cleanup
 {
 	enable_charging
+	restore_backlight
+	olpc-rotate normal
 	exit
 }
 trap cleanup SIGINT
@@ -347,6 +361,41 @@ function net_test()
 	done
 }
 
+# Simulate reading an ebook out in the sun.  This test
+# runs until we run out of battery.
+
+function sun_test()
+{
+
+	echo "Starting sunlight reading test"
+
+	set_backlight_off
+
+	# Rotate the screen as if we were in ebook mode
+	olpc-rotate inverted
+
+	SUSPEND_SECONDS=60
+
+	do_reading_with_stat
+	while true
+	do
+	    TSTART=$(get_timestamp)
+	    while [ $(diff_time ${TSTART}) -lt ${SUSPEND_SECONDS} ]
+	    do
+		TELAPSED=$(diff_time ${TSTART})
+		TSUS=$(( ${SUSPEND_SECONDS} - ${TELAPSED} ))
+		if [ ${TSUS} -lt 0 ]; then
+			TSUS=0
+		fi
+		sudo rtcwake --seconds ${TSUS} --mode mem > /dev/null 2>/dev/null
+	    done
+	    do_reading_with_stat
+	    sleep 15
+	done
+}
+
+save_backlight
+
 # Tell powerd not to suspend since this script will manage that and
 # prevent it from dimming the backlight
 
@@ -387,6 +436,8 @@ fi
 
 pwrlog_write_header
 init_readings
+take_reading
+log_reading
 
 # Start with a short baseline test
 if [ $SKIP_BASELINE_TEST != "true" ]; then
@@ -445,6 +496,11 @@ if [ $SKIP_NETWORK_TEST != "true" ]; then
 		net_test
 	fi
 fi
+
+if [ $SKIP_SUN_TEST != "true" ]; then
+	sun_test
+fi
+
 
 if [ $SYSSTAT_PID -gt 0 ]; then
 	sudo kill $SYSSTAT_PID
