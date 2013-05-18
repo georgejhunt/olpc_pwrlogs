@@ -183,7 +183,7 @@ class PwrLogfile:
 					break
 
 				if row[0].startswith('DATE:'):
-					# Dates can have commas and they get pased as csv so reconstruct
+					# Dates can have commas and they get parsed as csv so reconstruct
 					# the full string.
 					dstring = ''
 					for each in row:
@@ -289,6 +289,7 @@ class PwrLogfile:
 						continue
 				except:
 					print '%s : Conversion error line: %d' % (filename,reader.line_num)
+					traceback.print_exc(file=sys.stdout)
 					continue
 
 				row_processed = True
@@ -480,7 +481,7 @@ def process_logs(filenames,opt):
 		else:
 			title ='Power (filtered) vs Time'
 		if title_append:
-			title = title + (' (%s)' % title_append)
+			title = title + ('\n%s' % title_append)
 		ax3.set_title(title)
 		ax3.grid()
 		minorTick = MultipleLocator(.1)
