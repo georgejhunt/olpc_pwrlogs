@@ -154,7 +154,7 @@ class PwrLogfile:
 
 		return (result,0)
 
-	def read_file(self,filename,builds=[],serials=[],xovers=[]):
+	def read_file(self,filename,builds=[],serials=[],xovers=[],models=[]):
 		data = []
 		if os.stat(filename).st_size == 0:
 			return False
@@ -211,6 +211,10 @@ class PwrLogfile:
 
 		if len(xovers) > 0:
 			if not self.header['XOVER'] in xovers:
+				return False
+
+		if len(models) > 0:
+			if not self.header['MODEL'] in models:
 				return False
 
 		# Set the local timzone for where the data came from
@@ -378,6 +382,7 @@ def process_logs(filenames,opt):
 	serial_numbers		= []
 	build_list		= []
 	xover_list		= []
+	model_list		= []
 
 	if opt.build:
 		build_list	= [ x.lower() for x in opt.build.split(',') ]
@@ -387,6 +392,9 @@ def process_logs(filenames,opt):
 
 	if opt.xover:
 		xover_list 	= opt.xover.split(',')
+
+	if opt.model:
+		model_list 	= [ x.upper() for x in opt.model.split(',') ]
 
 	if opt.dignore:
 		try:
@@ -555,7 +563,7 @@ def process_logs(filenames,opt):
 #		ax12_2 = fig12.add_subplot(212)
 
 	for filename in filenames:
-		read_result = pl.read_file(filename,builds=build_list,serials=serial_numbers,xovers=xover_list)
+		read_result = pl.read_file(filename,builds=build_list,serials=serial_numbers,xovers=xover_list,models=model_list)
 
 		if debug_show_filenames:
 			print filename
@@ -734,6 +742,8 @@ def main():
 		help="Only plot files matching serial numbers.  Multiple SN's can be in a quoted csv string")
 	parser.add_argument('--xover', action='store',type=str,default=None,
 		help="Only plot files matching XO generation. [1|1.5|1.75|4]  Multiple generations can be in a quoted csv string")
+	parser.add_argument('--model', action='store',type=str,default=None,
+		help="Only plot files matching model numbers.  Multiple models can be in a quoted csv string")
 
 	args = parser.parse_args()
 
