@@ -20,7 +20,7 @@ import argparse
 from datetime import datetime, date, time
 from dateutil import tz, parser
 from matplotlib.backends.backend_pdf import PdfPages
-from scipy.interpolate import interp1d
+#from scipy.interpolate import interp1d
 
 class pwr_trace:
 	def __init__(self):
