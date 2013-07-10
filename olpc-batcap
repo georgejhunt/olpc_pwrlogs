@@ -7,7 +7,7 @@ set -u
 
 # These are used by the logfile header
 PRGNAME="olpc-batcap"
-VERSION="0.4.3"
+VERSION="0.4.4"
 
 echo -n "$PRGNAME Ver: $VERSION starting at "
 echo `date`
@@ -173,9 +173,10 @@ set_backlight_full
 # level.
 # For 1.75 83% works out to ~850mA and 70% is ~700mA.
 # For 4.0  61% works out to ~850mA. (Assuming only 1 core operational)
+#  changed to 74% -pgf
 
 if [[ $XO_VERSION == "4" ]]; then
-	amixer set Master 61% unmute > /dev/null
+	amixer set Master 74% unmute > /dev/null
 else
 	amixer set Speaker 100% unmute > /dev/null
 	amixer set Master 83% unmute > /dev/null
