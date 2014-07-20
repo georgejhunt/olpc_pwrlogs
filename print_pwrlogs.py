@@ -3,36 +3,45 @@
 #import MySQLdb
 #import MySQLdb.cursors
 import os.path
+import os
 import sys
 from datetime import datetime
 import argparse
 
+from acrecord import ShowPowerHistory, Tools
 import olpcpwrlog
 #import powerlogsdb
+#DATAROOT = '/home/olpc/power-logs'
+DATAROOT = './power-logs'
 
 def main():
 
+	"""
 	parser = argparse.ArgumentParser(description='add pwrlogs to database')
-	parser.add_argument('filenames', nargs='+', help='files to process')
+	parser.add_argument('filenames', help='files to process')
+	#parser.add_argument('filenames', nargs='+', help='files to process')
 	parser.add_argument('--replace', action='store_true',
                 help='Overwrite existing datafiles')
 
 	args = parser.parse_args()
-	"""
 	dbc = powerlogsdb.db_conn()
 	dbc.connect()
 	"""
 	pl = olpcpwrlog.PwrLogfile()
-
 	# Some feilds are named differently in the database due to them 
 	# being keywords.
 	fxlate = {}
 	fxlate['COMMENT'] = 'log_comment'
 	fxlate['Format']  = 'log_format'
-
-	numfiles = len(args.filenames)
+	
+	filenames = []
+	for root, subdirs, names in os.walk(DATAROOT):
+		filenames.extend(names)
+	numfiles = len(filenames)
 	filenum = 0
-	for fname in args.filenames:
+	filenames.sort()
+	for fname in filenames:
+		fname = os.path.join(root,fname)
 		filenum+=1
 		print "%d of %d\r" % (filenum,numfiles),
 		sys.stdout.flush()
@@ -98,7 +107,9 @@ def main():
 		
 		#fields = ["file_id","date_sec","soc","voltage","amperage","temp","acr","status","event","date_dtval"]
 		fields = ["date_sec","soc","voltage","amperage","temp","acr","status","event","date_dtval"]
-		print(fields)			 
+		#print(fields)			 
+		selected_values = []
+		samples.sort(key=lambda x:x[0])
 		for sval in samples:
 			values = []
 			#values.append(file_id) 
@@ -106,8 +117,12 @@ def main():
 			values.append(int(sval[1]))
 			values.extend(sval[2:])
 			#dbc.insert_row('samples',fields,values)
-			print(values)
-
+			if values[7].find("ac") != -1 or \
+			   values[7].find("startup") != -1 or \
+			   values[7].find("shutdown") != -1:
+				selected_values.append(values)
+				if len(values) == 9:
+					print(values[0], values[7], values[8])
 
 
 
