@@ -40,6 +40,7 @@ def main():
 	numfiles = len(filenames)
 	filenum = 0
 	filenames.sort()
+	selected_values = []
 	for fname in filenames:
 		fname = os.path.join(root,fname)
 		filenum+=1
@@ -108,7 +109,6 @@ def main():
 		#fields = ["file_id","date_sec","soc","voltage","amperage","temp","acr","status","event","date_dtval"]
 		fields = ["date_sec","soc","voltage","amperage","temp","acr","status","event","date_dtval"]
 		#print(fields)			 
-		selected_values = []
 		samples.sort(key=lambda x:x[0])
 		for sval in samples:
 			values = []
@@ -121,9 +121,12 @@ def main():
 			   values[7].find("startup") != -1 or \
 			   values[7].find("shutdown") != -1:
 				selected_values.append(values)
-				if len(values) == 9:
-					print(values[0], values[7], values[8])
-
+	selected_values.sort(key=lambda x:x[0])
+	#print(selected_values)
+	tls=Tools()
+	sph = ShowPowerHistory()
+	sph.output_summary(selected_values)
 
 
 main()
+# vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
