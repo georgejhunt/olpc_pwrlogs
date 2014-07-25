@@ -32,7 +32,7 @@ import glob
 from gettext import gettext as _
 
 VERSION = "0.2"
-debug = False
+debug = True
 
 #WORK_DIR="/home/olpc"
 WORK_DIR="."
@@ -47,6 +47,8 @@ logger.setLevel(logging.WARNING)
 """the following class is stolen from dateutil -- becuse dateutil needs to be installed online and we're trying to make an offline install """
 ZERO = datetime.timedelta(0)
 EPOCHORDINAL = datetime.datetime.utcfromtimestamp(0).toordinal()
+MATRIX = True
+GRAPH = True
 
 class PowerChunk():
     def __init__(self,pdstart,pdlength):
@@ -54,12 +56,14 @@ class PowerChunk():
 	self.lensec = pdlength
 
 class tzlocal(datetime.tzinfo):
+    global tz_offset
 
     _std_offset = datetime.timedelta(seconds=-time.timezone)
     if time.daylight:
         _dst_offset = datetime.timedelta(seconds=-time.altzone)
     else:
         _dst_offset = _std_offset
+    tz_offset = _std_offset.total_seconds()
 
     def utcoffset(self, dt):
         if self._isdst(dt):
@@ -157,6 +161,7 @@ UTC2LOCALSECONDS = UTC2LOCAL.total_seconds()
 
 class Tools:
     def __init__(self):
+        global tz_offset
         pass
 
     def cli(self, cmd):
@@ -179,8 +184,8 @@ class Tools:
 
     def tstamp(self, dtime):
         '''return a UNIX style seconds since 1970 for datetime input'''
-        epoch = datetime.datetime(1970, 1, 1,tzinfo=tz)
-        newdtime = dtime.astimezone(tz)
+        epoch = datetime.datetime(1970, 1, 1,tzinfo=tzu)
+        newdtime = dtime.astimezone(tzu)
         since_epoch_delta = newdtime - epoch
         return since_epoch_delta.total_seconds()
 
@@ -193,7 +198,7 @@ class Tools:
         dtime = datetime.datetime.strptime(thestr.strip(), "%Y/%m/%d-%H:%M:%S-%Z")
         awaredt = dtime.replace(tzinfo=tz)
         newdtime = awaredt.astimezone(tz)
-        epoch = datetime.datetime(1970, 1, 1,tzinfo=tz)
+        epoch = datetime.datetime(1970, 1, 1,tzinfo=tzu)
         since_epoch_delta = newdtime - epoch
         return since_epoch_delta.total_seconds()
 
@@ -203,8 +208,7 @@ class Tools:
 
     def format_datetime(self, dt):
         """ return ymdhms string """
-        awaredt = dt.astimezone(tz)
-        return datetime.datetime.strftime(awaredt, "%Y/%m/%d-%H:%M:%S-%Z")
+        return datetime.datetime.strftime(dt, "%Y/%m/%d-%H:%M:%S-%z")
 
     def dhm_from_seconds(self,s):
         """ translate seconds into days, hour, minutes """
@@ -216,13 +220,13 @@ class Tools:
 
     def ts2str(self,ts):
         """ change a time stamp into a string expressed in local time zone"""
-        unaware = datetime.datetime.fromtimestamp(ts)
-        aware = unaware.replace(tzinfo=tzu)
-        return self.format_datetime(aware)
+        dttime = datetime.datetime.fromtimestamp(ts)
+        return self.format_datetime(dttime)
 
 class ShowPowerHistory(Tools):
     def __init__(self):
-	pass
+        global tz_offset
+        pass
     def output_summary(self,data):
         # online is a dictoionary with key=start_time_stamp, value on time_seconds
         online = {}
@@ -234,7 +238,6 @@ class ShowPowerHistory(Tools):
         print("\nGAPS IN AC POWER DURING %s to %s:" % (first_str, last_str,))
         first = data[0][0]
         power_state = None
-        ts_list = []
         for index in range(len(data)):
             if debug:
                 print(data[index][0], data[index][7],data[index][8], self.ts2str(data[index][0]))
@@ -273,7 +276,7 @@ class ShowPowerHistory(Tools):
             print "average length of outage: %s days %s hours %s minutes" % \
                 (days, hours,minutes)
             gap_list = sorted(gap_length_list, key=lambda x:x[1])
-            power_list = sorted(power_list)
+            ts_list = sorted(power_list)
             last_seconds = power_list[len(power_list)-1][0] + power_list[len(power_list)-1][1]
             if debug:
                 for item, value in power_list:
@@ -299,14 +302,14 @@ class ShowPowerHistory(Tools):
             #    X's across the 96 columns of a day for each chunk that has power
 
            # first get the offset of the first entry from midnight
-            firstdt = datetime.datetime.fromtimestamp(first_ts)
+            firstdt = datetime.datetime.fromtimestamp(first_ts, tz)
             first_midnight_local = firstdt - datetime.timedelta(\
                     hours=firstdt.hour,minutes=firstdt.minute, seconds=firstdt.second)
             # lets do all the time in seconds since 1970 (tstamp) and in UTC
             midnight_str = self.format_datetime(first_midnight_local)
             print("midnight should be:%s"%midnight_str)
             first_midnight_seconds = self.tstamp(first_midnight_local)
-            last_seconds = self.get_utc_tstamp_from_local_string(last)
+            last_seconds = last_ts
             current_bucket_seconds = first_midnight_seconds
             current_power_state = False  # we backtracked from the time when the monitor was enabled
             key_index = 0
@@ -316,12 +319,12 @@ class ShowPowerHistory(Tools):
             seconds_in_current_day = 1000
             bucket_size = 60 * 15.0
             
-            for k,v in ts_list:
-                print("key:%s, string:%s, value:%s"%(k,self.ts2str(k), v,))
+            if debug:
+                for k,v in ts_list:
+                    print("key:%s, string:%s, value:%s"%(k,self.ts2str(k), v,))
             print("Before loop begins: on:%s, off:%s,bucket_seconds:%s"%(\
                 self.ts2str(power_on_seconds),self.ts2str(power_off_seconds),\
                 self.ts2str(current_bucket_seconds),))
-            graph = True
             buckets = []
             for j in range(96):
                 buckets.append(0)
@@ -329,16 +332,16 @@ class ShowPowerHistory(Tools):
                 for index in range(len(ts_list)):
                     if ts_list[index][0] > current_bucket_seconds:
                         break
-                    if ts_list[index][1] == "1":
+                    if ts_list[index][0] + ts_list[index][1] > current_bucket_seconds: 
                         current_power_state = True
                     else:
                         current_power_state = False
-                if matrix:
+                if MATRIX:
                     if current_power_state:
                         sys.stdout.write("X")
                     else:
                         sys.stdout.write(" ")
-                if graph:
+                if GRAPH:
                     bucket_index = int(seconds_in_current_day / bucket_size)
                     if current_power_state:
                         buckets[bucket_index] += 1
@@ -346,9 +349,9 @@ class ShowPowerHistory(Tools):
 
                 current_bucket_seconds += bucket_size
                 seconds_in_current_day = (current_bucket_seconds - first_midnight_seconds) % seconds_in_day
-                if seconds_in_current_day < 10 and matrix:
+                if seconds_in_current_day < 10 and MATRIX:
                     print
-            if graph:
+            if GRAPH:
 # find the max of the buckets
                 print("\nGraph")
                 bucket_max = max(buckets)
@@ -364,9 +367,9 @@ class ShowPowerHistory(Tools):
 
             print "\n0   1   2   3   4   5   6   7   8   9   10  11  12  13  14  15  16  17  18  19  20  21  22  23"
 
-            print("\nINDIVIDUAL POWER DISRUPTIONS:")
+            print("\nINDIVIDUAL POWER PERIODS:")
             for item, value in power_list:
-                localts = item  + tzoffset
+                localts = item  
                 localstr = self.ts2str(localts)
                 (days, hours, minutes) = self.dhm_from_seconds(value)
                 print "%s %s days %s hours and %s minutes" % \
