@@ -1,6 +1,0 @@
-#!/bin/bash
-#
-# script to print out the power log
-for f in `ls ./power-logs/*`;do
-   ./print_pwrlogs.py ./$f
-done

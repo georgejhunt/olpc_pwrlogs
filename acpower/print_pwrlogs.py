@@ -16,17 +16,24 @@ DATAROOT = './power-logs'
 
 def main():
 
-	"""
-	parser = argparse.ArgumentParser(description='add pwrlogs to database')
-	parser.add_argument('filenames', help='files to process')
-	#parser.add_argument('filenames', nargs='+', help='files to process')
-	parser.add_argument('--replace', action='store_true',
-                help='Overwrite existing datafiles')
+	parser = argparse.ArgumentParser(description='Summarize AC Grid pwrlogs')
+	parser.add_argument('-n', '--newlog', action='store_true',
+                help='ignore log accumulated before now')
+	parser.add_argument('-d', '--daily', action='store_true',
+                help='show power by day and hour')
+	parser.add_argument('-s', '--start', 
+                help='start report this dd/mm/yy')
+	parser.add_argument('-e', '--daily',
+                help='end report this dd/mm/yy')
+	parser.add_argument('-v', '--verbose', action='store_true',
+                help='show debugging information')
+    args = parser.parse_args()
 
-	args = parser.parse_args()
-	dbc = powerlogsdb.db_conn()
-	dbc.connect()
-	"""
+    if os.path.exists("/proc/device-tree/mfg-data/CP"):
+        print "The CP manufacturing tag is not set.  Please read the instructions"
+        print "at /usr/local/acpowerREADME.rst"
+        sys.exit(1)
+
 	pl = olpcpwrlog.PwrLogfile()
 	# Some feilds are named differently in the database due to them 
 	# being keywords.
@@ -73,40 +80,7 @@ def main():
 			else:
 				fields.append(k)
 			values.append(v) 
-		"""	
-		# if replace is active and we exist then we need to delete all this files
-		# records first
-		findcmd = "SELECT file_id from files WHERE"
-		findcmd += " date_string = '%s'" % headers['date_string'] 
-		findcmd += " AND sernum = '%s'" % headers['SERNUM']
-		findcmd += " AND batser = '%s'" % headers['BATSER']
-		findcmd += ';'
 
-		if args.replace:
-			# Find the file_id for the file and delete the samples
-			dbc.do_query(findcmd)
-			row = dbc.get_row()
-			if row: 
-				file_id = row[0]
-				cmd = "DELETE from files WHERE file_id = '%s'" % file_id
-				dbc.do_query(cmd)
-				cmd = "DELETE from samples WHERE file_id = '%s'" % file_id
-				dbc.do_query(cmd)
-
-		try:	
-			dbc.insert_row('files',fields,values)
-		except:
-			print "%s: Could not create file entry. Error: " % fname,
-			print sys.exc_info()
-			continue
-	
-		dbc.do_query(findcmd)
-		file_id = dbc.get_row()[0]
-		"""
-		# Now insert all the sampels from the log file using 
-		# the file_id just created.
-		
-		#fields = ["file_id","date_sec","soc","voltage","amperage","temp","acr","status","event","date_dtval"]
 		fields = ["date_sec","soc","voltage","amperage","temp","acr","status","event","date_dtval"]
 		#print(fields)			 
 		samples.sort(key=lambda x:x[0])
@@ -123,9 +97,9 @@ def main():
 				selected_values.append(values)
 	selected_values.sort(key=lambda x:x[0])
 	#print(selected_values)
-	tls=Tools()
+
 	sph = ShowPowerHistory()
-	sph.output_summary(selected_values)
+	sph.output_summary(selected_values,args)
 
 
 main()
