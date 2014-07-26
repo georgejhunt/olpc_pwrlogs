@@ -32,7 +32,6 @@ import glob
 from gettext import gettext as _
 
 VERSION = "0.2"
-debug = True
 
 #WORK_DIR="/home/olpc"
 WORK_DIR="."
@@ -44,10 +43,13 @@ logger.addHandler(hdlr)
 #logger.setLevel(logging.DEBUG)
 logger.setLevel(logging.WARNING)
 
+DATA_FILE = "/home/olpc/.acpower"
+# data_dict is global config file initialized in is_exist_data_file - used throughout
+data_dict = {}
+
 """the following class is stolen from dateutil -- becuse dateutil needs to be installed online and we're trying to make an offline install """
 ZERO = datetime.timedelta(0)
 EPOCHORDINAL = datetime.datetime.utcfromtimestamp(0).toordinal()
-MATRIX = True
 GRAPH = True
 
 class PowerChunk():
@@ -173,6 +175,46 @@ class Tools:
             logger.debug('error returned from shell command: %s was %s'%(cmd,output[0]))
         return output[0],p1.returncode
 
+    def is_exist_data_file(self):
+        #get the tmp data file
+        global data_dict
+        if (len(data_dict)> 0):
+            return True
+        try:
+            fd = file(DATA_FILE,'r')
+            data_str = fd.read()
+            data_dict = json.loads(data_str)
+            fd.close()
+            return True
+        except IOError:
+            return False
+
+    def put_data_file(self):
+        """ writes the data_dict to tmp file system """
+        try:
+            fd = file(DATA_FILE,'w')
+            data_str = json.dumps(data_dict)
+            fd.write(data_str)
+            fd.close()
+        except IOError,e:
+            logging.exception("failed to write data file. error:%s"% (e,))
+            raise AcException("Datafile write error")
+
+    def get_summary_filename(self):
+        """ returns the filename of current summary file or "" if it doesn't exist """
+        fn = os.path.join(SUMMARY_PREFIX,SUMMARY_CURRENT)
+        if (os.path.isfile(fn)):
+            try:
+                fd = open(fn,"r")
+                fname = fd.read()
+            except :
+                cmd = "rm -f %s"%fn
+                result,status = self.cli(cmd)
+                return ""
+            return fname
+        return ""
+
+
     def get_datetime(self, datestr):
         """ translate ymdhms string into datetime """
         dt = datetime.datetime.strptime(datestr, "%Y/%m/%d-%H:%M:%S-%Z")
@@ -192,6 +234,13 @@ class Tools:
     def get_utc_tstamp_from_local_string(self,instr):
         localdt = self.get_datetime(instr)
         return self.tstamp(localdt)  + tzoffset
+
+    dev parse_date(self,str):
+        try:
+            return self.get_utc_tstamp_fromLocal_string(dstr)
+        except:    
+            print str
+        return 0L 
 
     def str2tstamp(self, thestr):
         '''return a UNIX style seconds since 1970 for string input'''
@@ -227,8 +276,18 @@ class ShowPowerHistory(Tools):
     def __init__(self):
         global tz_offset
         pass
-    def output_summary(self,data):
+    def output_summary(self, data, args):
         # online is a dictoionary with key=start_time_stamp, value on time_seconds
+        debug = args.verbose
+        MATRIX = args.daily
+        if args.start:
+            self.is_exist_data_file()
+            start = self.parse_date(args.start)
+            if start <> 0:
+                data_dict["start"] = start 
+        if args.end:
+            self.is_exist_data_file()
+            data_file['end'] = self.parse_date(args.end)
         online = {}
         gap_start = None
         first_ts = data[0][0]
@@ -307,7 +366,8 @@ class ShowPowerHistory(Tools):
                     hours=firstdt.hour,minutes=firstdt.minute, seconds=firstdt.second)
             # lets do all the time in seconds since 1970 (tstamp) and in UTC
             midnight_str = self.format_datetime(first_midnight_local)
-            print("midnight should be:%s"%midnight_str)
+            if debug:
+                print("midnight should be:%s"%midnight_str)
             first_midnight_seconds = self.tstamp(first_midnight_local)
             last_seconds = last_ts
             current_bucket_seconds = first_midnight_seconds
@@ -322,7 +382,7 @@ class ShowPowerHistory(Tools):
             if debug:
                 for k,v in ts_list:
                     print("key:%s, string:%s, value:%s"%(k,self.ts2str(k), v,))
-            print("Before loop begins: on:%s, off:%s,bucket_seconds:%s"%(\
+                print("Before loop begins: on:%s, off:%s,bucket_seconds:%s"%(\
                 self.ts2str(power_on_seconds),self.ts2str(power_off_seconds),\
                 self.ts2str(current_bucket_seconds),))
             buckets = []
