@@ -35,13 +35,6 @@ VERSION = "0.2"
 
 #WORK_DIR="/home/olpc"
 WORK_DIR="."
-logger = logging.getLogger('acpower')
-hdlr = logging.FileHandler(os.path.join(WORK_DIR,'acpower.log'))
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(messages)s')
-hdlr.setFormatter(formatter)
-logger.addHandler(hdlr)
-#logger.setLevel(logging.DEBUG)
-logger.setLevel(logging.WARNING)
 
 DATA_FILE = "/home/olpc/.acpower"
 # data_dict is global config file initialized in is_exist_data_file - used throughout
@@ -168,11 +161,10 @@ class Tools:
 
     def cli(self, cmd):
         """send cmd line to shell, rtn (text,error code)"""
-        logger.debug('command_line cmd:%s'%cmd)
         p1 = Popen(cmd,stdout=PIPE, shell=True)
         output = p1.communicate()
         if p1.returncode != 0 :
-            logger.debug('error returned from shell command: %s was %s'%(cmd,output[0]))
+            print('error returned from shell command: %s was %s'%(cmd,output[0]))
         return output[0],p1.returncode
 
     def is_exist_data_file(self):
@@ -231,11 +223,11 @@ class Tools:
         since_epoch_delta = newdtime - epoch
         return since_epoch_delta.total_seconds()
 
-    def get_utc_tstamp_from_local_string(self,instr):
+    def get_utc_tmtamp_from_local_string(self,instr):
         localdt = self.get_datetime(instr)
         return self.tstamp(localdt)  + tzoffset
 
-    dev parse_date(self,str):
+    def parse_date(self,str):
         try:
             return self.get_utc_tstamp_fromLocal_string(dstr)
         except:    
@@ -272,6 +264,11 @@ class Tools:
         dttime = datetime.datetime.fromtimestamp(ts)
         return self.format_datetime(dttime)
 
+    def ts2date(self,ts):
+        """ change a time stamp into a string expressed in local time zone"""
+        dttime = datetime.datetime.fromtimestamp(ts)
+        return datetime.datetime.strftime(dttime, "%Y/%m/%d")
+
 class ShowPowerHistory(Tools):
     def __init__(self):
         global tz_offset
@@ -285,16 +282,22 @@ class ShowPowerHistory(Tools):
             start = self.parse_date(args.start)
             if start <> 0:
                 data_dict["start"] = start 
+                self.put_data_file()
+                os.exit(0)
         if args.end:
             self.is_exist_data_file()
-            data_file['end'] = self.parse_date(args.end)
+            end = self.parse_date(args.end)
+            if end <> 0:
+                data_file['end'] = end
+                self.put_data_file()
+                os.exit(0)
         online = {}
         gap_start = None
         first_ts = data[0][0]
-        first_str = self.ts2str(first_ts)
+        first_str = self.ts2date(first_ts)
         last_ts = data[len(data)-1][0]
-        last_str = self.ts2str(last_ts)
-        print("\nGAPS IN AC POWER DURING %s to %s:" % (first_str, last_str,))
+        last_str = self.ts2date(last_ts)
+        print("\n     SUMMARY OF AC POWER DURING PERIOD: %s to %s:\n" % (first_str, last_str,))
         first = data[0][0]
         power_state = None
         for index in range(len(data)):
@@ -305,8 +308,10 @@ class ShowPowerHistory(Tools):
                 if not power_state:
                     power_start = data[index][0]
                     power_state = True
-            elif data[index][7].find('ac-offline-event') != -1 or \
-                data[index][7].find('shutdown') != -1:
+            elif data[index][7].find('ac-offline-event') != -1:
+                online[power_start] = data[index][0] - power_start
+                power_state = None
+            elif power_state and data[index][7].find('shutdown') != -1:
                 online[power_start] = data[index][0] - power_start
                 power_state = None
         for k in sorted(online):
@@ -413,7 +418,7 @@ class ShowPowerHistory(Tools):
                     print
             if GRAPH:
 # find the max of the buckets
-                print("\nGraph")
+                print("\nBar Graph")
                 bucket_max = max(buckets)
                 if debug:
                     print("bucket_max:%s"%bucket_max)

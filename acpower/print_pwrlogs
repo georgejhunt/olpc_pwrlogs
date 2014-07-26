@@ -11,8 +11,12 @@ import argparse
 from acrecord import ShowPowerHistory, Tools
 import olpcpwrlog
 #import powerlogsdb
-#DATAROOT = '/home/olpc/power-logs'
-DATAROOT = './power-logs'
+DATAROOT = '/home/olpc/power-logs'
+ISXO = True
+if not os.path.exists("/proc/device-tree/mfg-data/MN"):
+    ISXO = False
+    wdir = os.getcwd()
+    DATAROOT = os.path.join(wdir,"power-logs")
 
 def main():
 
@@ -25,13 +29,15 @@ def main():
                 help='start report this dd/mm/yy')
     parser.add_argument('-e', '--end',
                 help='end report this dd/mm/yy')
+    parser.add_argument('-u', '--usb',
+                help='write this report to mounted USB stick')
     parser.add_argument('-v', '--verbose', action='store_true',
                 help='show debugging information')
     args = parser.parse_args()
 
-    if os.path.exists("/proc/device-tree/mfg-data/CP"):
-        print "The CP manufacturing tag is not set.  Please read the instructions"
-        print "at /usr/local/acpowerREADME.rst"
+    if ISXO and not os.path.exists("/proc/device-tree/mfg-data/CP"):
+        print "The CP manufacturing tag is not set. "
+        #print "at /usr/local/acpower/README.rst"
         sys.exit(1)
 
     pl = olpcpwrlog.PwrLogfile()
@@ -51,7 +57,8 @@ def main():
     for fname in filenames:
         fname = os.path.join(root,fname)
         filenum+=1
-        print "%d of %d\r" % (filenum,numfiles),
+        if args.verbose:
+            print "%d of %d\r" % (filenum,numfiles),
         sys.stdout.flush()
         fields = []
         values = []
