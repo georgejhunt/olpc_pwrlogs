@@ -29,6 +29,8 @@ def main():
                 help='start report this dd/mm/yy')
     parser.add_argument('-e', '--end',
                 help='end report this dd/mm/yy')
+    parser.add_argument('-p', '--powersegments', action='store_true',
+                help='list individual power details')
     #parser.add_argument('-u', '--usb',
                 #help='write this report to mounted USB stick')
     parser.add_argument('-v', '--verbose', action='store_true',

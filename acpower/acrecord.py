@@ -393,6 +393,10 @@ class ShowPowerHistory(Tools):
             buckets = []
             for j in range(96):
                 buckets.append(0)
+            if MATRIX:
+                current_day_ts = first_ts
+                current_day_str = self.ts2date(current_day_ts)
+                print("One line per day. Current day: %s"%current_day_str)
             while current_bucket_seconds < last_seconds:
                 for index in range(len(ts_list)):
                     if ts_list[index][0] > current_bucket_seconds:
@@ -432,13 +436,14 @@ class ShowPowerHistory(Tools):
 
             print "\n0   1   2   3   4   5   6   7   8   9   10  11  12  13  14  15  16  17  18  19  20  21  22  23"
 
-            print("\nINDIVIDUAL POWER PERIODS:")
-            for item, value in power_list:
-                localts = item  
-                localstr = self.ts2str(localts)
-                (days, hours, minutes) = self.dhm_from_seconds(value)
-                print "%s %s days %s hours and %s minutes" % \
-                            (localstr, days, hours, minutes, )
+            if args.powersegments:
+                print("\nINDIVIDUAL POWER PERIODS:")
+                for item, value in power_list:
+                    localts = item  
+                    localstr = self.ts2str(localts)
+                    (days, hours, minutes) = self.dhm_from_seconds(value)
+                    print "%s %s days %s hours and %s minutes" % \
+                                (localstr, days, hours, minutes, )
     def output_state(self):
         if self.isenabled():
             state = "ENABLED"
