@@ -63,7 +63,7 @@ At a terminal command line, type "acpower". The output will be similar to the fo
 
 The first block provides some statistics about the AC power record.
 
-The second block shows a Bar Graph, where the height of the bar shows how many times the power was on in that 15 minut
+The second block shows a Bar Graph, where the height of the bar shows how many times the power was on in that 15 minute 
 segment of the day.
 There are options which can be used to summarize just a limited subset of the log. There is a help/usage screen
 which is available by typing 
@@ -105,10 +105,11 @@ The -p option will list the details of each segment of available power::
 If you want to record the listing, and send it via email, or print it, you can redirect the output from the screen to a file, and then copy that file to a USB stick.
 
         - Use "df -h" to see the path associated with your USB stick (Usually it is /run/media/olpc/<USB stick label>
-        - Redirect the ouptup of the print_pwrlog to a file :
+        - Redirect the ouptup of the *acpower* to a file :
           
            *acpower > /run/media/olpc/1838-1234/mypowersummary*
 
         - Take the USB stick to an internet connected computer and email the report. or
-        - Put the USB stick in a computer that is connected to  printer, open the file in a text editor, and print it.
+        - Put the USB stick in a computer that is connected to a printer, open the file in a text editor, and print it.
 
+For the hackers, please note that the ACPower zip file is actually generated as a mktinycorexo xo-client, and the code resides at: https://github.com/georgejhunt/mktinycorexo/tree/acpower/xo-client as a branch off of that cloned repo.  The original git repo is at http://dev/laptop.org/git/user/quozl/mktinycorexo
