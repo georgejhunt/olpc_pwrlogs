@@ -84,7 +84,7 @@ optional arguments:
   -p, --powersegments   list individual power details
   -v, --verbose         show debugging information
 
-The -d --daily option shows an x-y scattergram with days growing down, and hours spreading across. The scattergram which generated the above bar chart looks like:
+The -d --daily option shows an x-y scattergram with days growing down, and hours spreading across. The scattergram which generated the above bar chart looks like::
 
  One line per day. Current day: 2014/07/23
                                                                                      XXXXXXXXXXX
@@ -92,7 +92,7 @@ The -d --daily option shows an x-y scattergram with days growing down, and hours
                         XXXXXXXXXXXXXXXXXXXXXXXXX                   XXXXXXXXXXXXXXXXXXXXX        
                             
 
-The -p option will list the details of each segment of available power:
+The -p option will list the details of each segment of available power::
 
  INDIVIDUAL POWER PERIODS:
  2014/07/23-20:41:18- 0 days 0 hours and 3 minutes
