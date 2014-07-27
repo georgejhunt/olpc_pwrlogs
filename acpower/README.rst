@@ -40,9 +40,59 @@ When the AC power returns, the XO will turn on again.
 
 
 If you want the record the listing, and sent it via email, or print it, you can redirect the output from the screen to a file, and then copy that file to a USB stick.
-- Use "df -h" to see the path associated with your USB stick (Usually it is /run/media/olpc/<USB stick label>
-- Redirect the ouptup of the print_pwrlog to a file "print_pwrlog > <path of USB stick><filename of your chosing>"
-- Take the USB stick to an internet connected computer and email the report. or
-- Put the USB stick in a computer that is connected to  printer, open the file in a text editor, and print it.
-At a terminal command line, type "print-pwrlogs". The output will be similar to the following:
+
+        - Use "df -h" to see the path associated with your USB stick (Usually it is /run/media/olpc/<USB stick label>
+        - Redirect the ouptup of the print_pwrlog to a file "print_pwrlog > <path of USB stick><filename of your chosing>"
+        - Take the USB stick to an internet connected computer and email the report. or
+        - Put the USB stick in a computer that is connected to  printer, open the file in a text editor, and print it.
+
+At a terminal command line, type "print-pwrlogs". The output will be similar to the following::
+
+
+     SUMMARY OF AC POWER DURING PERIOD: 2014/07/23 to 2014/07/26:
+
+ length of log 2 days, 10 hours, 7 minutes
+ number of power outages: 4
+ average length of outage: 0.0 days 7.0 hours 52.0 minutes
+ shortest outage: 0 days 0 hours 16 minutes 
+ longest outage: 0 days 10 hours 23 minutes 
+ Average power within 24 hours:13.01 hours
+
+
+ DISTRUBUTION OF POWER OVER THE DAY
+
+ Bar Graph
+                                                                                       X        
+                        XXXXXXXXXXXXXXXXXXXXXX                                        XXXXX      
+ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX                   XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+ 0   1   2   3   4   5   6   7   8   9   10  11  12  13  14  15  16  17  18  19  20  21  22  23
+
+ INDIVIDUAL POWER PERIODS:
+ 2014/07/23-20:41:18- 0 days 0 hours and 3 minutes
+ 2014/07/23-21:00:37- 0 days 14 hours and 12 minutes
+ 2014/07/24-21:37:04- 0 days 0 hours and 47 minutes
+ 2014/07/25-05:41:53- 0 days 6 hours and 5 minutes
+ 2014/07/25-16:31:16- 0 days 5 hours and 28 minutes
+
+The first block provides some statistics about the AC power record.
+
+There are options which can be used to summarize just a limited subset of the log. There is a help/usage screen
+which is available by typing 
+
+   *print-pwrlogs -h*
+
+usage: print_pwrlogs [-h] [-n] [-d] [-s START] [-e END] [-u USB] [-v]
+
+Summarize AC Grid pwrlogs
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -n, --newlog          ignore log accumulated before now
+  -d, --daily           show power by day and hour
+  -s START, --start START
+                        start report this dd/mm/yy
+  -e END, --end END     end report this dd/mm/yy
+  -v, --verbose         show debugging information
+
 
