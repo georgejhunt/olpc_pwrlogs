@@ -295,7 +295,7 @@ class ShowPowerHistory(Tools):
         global tz_offset
         pass
 
-    def set_start(self, start_str):
+    def set_start(self, start_str, debug):
         self.is_exist_data_file()
         start = self.parse_date(start_str)
         if start <> 0:
@@ -311,11 +311,11 @@ class ShowPowerHistory(Tools):
             sys.exit(0)
 
             
-    def set_end(self, end_str):          
+    def set_end(self, end_str, debug):          
         self.is_exist_data_file()
         end = self.parse_date(end_str)
         if end <> 0:
-            data_file['end'] = end
+            data_dict['end'] = end
             self.put_data_file()
             if debug:
                 self.print_data_file()
@@ -329,9 +329,9 @@ class ShowPowerHistory(Tools):
         debug = args.verbose
         MATRIX = args.daily
         if args.start:
-            self.set_start(args.start)
+            self.set_start(args.start, args.verbose)
         if args.end:
-            self.set_end(args.end)
+            self.set_end(args.end, args.verbose)
         # online is a dictionary. key=utc_timestamp when power came on, value=seconds ontime
         online = {}
         gap_start = None
@@ -345,6 +345,7 @@ class ShowPowerHistory(Tools):
         print("\n     SUMMARY OF AC POWER DURING PERIOD: %s to %s:\n" % (first_str, last_str,))
         first = data[0][0]
         power_state = None
+        power_start = first
         for index in range(len(data)):
             if debug:
                 print(data[index][0], data[index][7],data[index][8], self.ts2str(data[index][0]))

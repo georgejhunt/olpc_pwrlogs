@@ -46,10 +46,12 @@ def main():
     data_dict = sph.get_data_dict()
     if not data_dict:
         print("unable to fetch persistent data. Creating persistent data file and initializing ")
-        sph.set_start("1/1/1970")
-        sph.set_end("12/31/2099")
+        sph.set_start("2/1/1970", args.verbose)
+        sph.set_end("12/31/2030", args.verbose)
     start = data_dict["start"]
     end = data_dict["end"]
+    if args.verbose:
+        print("start seconds:%s. end seconds: %s"%(start,end,))
     pl = olpcpwrlog.PwrLogfile()
     # Some feilds are named differently in the database due to them 
     # being keywords.
