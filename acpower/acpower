@@ -42,6 +42,14 @@ def main():
         #print "at /usr/local/acpower/README.rst"
         sys.exit(1)
 
+    sph = ShowPowerHistory()
+    data_dict = sph.get_data_dict()
+    if not data_dict:
+        print("unable to fetch persistent data. Creating persistent data file and initializing ")
+        sph.set_start("1/1/1970")
+        sph.set_end("12/31/2099")
+    start = data_dict["start"]
+    end = data_dict["end"]
     pl = olpcpwrlog.PwrLogfile()
     # Some feilds are named differently in the database due to them 
     # being keywords.
@@ -97,6 +105,10 @@ def main():
             values = []
             #values.append(file_id) 
             values.append(int(sval[0]))
+            if sval[0] < start:
+                continue
+            if sval[0] > end:
+                break
             values.append(int(sval[1]))
             values.extend(sval[2:])
             #dbc.insert_row('samples',fields,values)
@@ -107,7 +119,7 @@ def main():
     selected_values.sort(key=lambda x:x[0])
     #print(selected_values)
 
-    sph = ShowPowerHistory()
+    #sph = ShowPowerHistory()
     sph.output_summary(selected_values,args)
 
 

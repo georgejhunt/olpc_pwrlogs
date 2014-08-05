@@ -36,7 +36,7 @@ VERSION = "0.2"
 #WORK_DIR="/home/olpc"
 WORK_DIR="."
 
-DATA_FILE = "/home/olpc/.acpower"
+DATA_FILE = os.path.expanduser("~/.acpower")
 # data_dict is global config file initialized in is_exist_data_file - used throughout
 data_dict = {}
 
@@ -181,13 +181,32 @@ class Tools:
         except IOError:
             return False
 
+    def get_data_dict(self):
+        global data_dict
+        if self.is_exist_data_file():
+            return data_dict
+        return None
+
     def put_data_file(self):
-        """ writes the data_dict to tmp file system """
+        """ writes the data_dict """
         try:
             fd = file(DATA_FILE,'w')
             data_str = json.dumps(data_dict)
             fd.write(data_str)
             fd.close()
+        except IOError,e:
+            logging.exception("failed to write data file. error:%s"% (e,))
+            raise AcException("Datafile write error")
+    
+    def print_data_file(self):
+        """ Prints the data_dict """
+        try:
+            fd = file(DATA_FILE,'r')
+            data_str = json.dumps(data_dict)
+            fd.close()
+            print("Contents of persistent data record:")
+            for k in data_dict:
+                print("   ",k,data_dict[k])
         except IOError,e:
             logging.exception("failed to write data file. error:%s"% (e,))
             raise AcException("Datafile write error")
@@ -227,11 +246,13 @@ class Tools:
         localdt = self.get_datetime(instr)
         return self.tstamp(localdt)  + tzoffset
 
-    def parse_date(self,str):
+    def parse_date(self,datestr):
         try:
-            return self.get_utc_tstamp_fromLocal_string(dstr)
-        except:    
-            print str
+            unawaredt = datetime.datetime.strptime(datestr, "%m/%d/%Y")
+            tzaware = unawaredt.replace(tzinfo=tz)
+            return self.tstamp(tzaware)  # + tzoffset
+        except Exception as e:    
+            print("returned error:%s. Error in date [%s]. Expected in format mm/dd/yyyy"% (e,datestr,))
         return 0L 
 
     def str2tstamp(self, thestr):
@@ -273,26 +294,50 @@ class ShowPowerHistory(Tools):
     def __init__(self):
         global tz_offset
         pass
+
+    def set_start(self, start_str):
+        self.is_exist_data_file()
+        start = self.parse_date(start_str)
+        if start <> 0:
+            data_dict["start"] = start 
+            if not data_dict.has_key("end"):
+                data_dict["end"] = self.parse_date("12/31/2099")
+            self.put_data_file()
+            if debug:
+                self.print_data_file()
+            sys.exit(0)
+        else:
+            print("start date not recognized")
+            sys.exit(0)
+
+            
+    def set_end(self, end_str):          
+        self.is_exist_data_file()
+        end = self.parse_date(end_str)
+        if end <> 0:
+            data_file['end'] = end
+            self.put_data_file()
+            if debug:
+                self.print_data_file()
+            sys.exit(0)
+        else:
+            print("end date not recognized")
+            sys.exit(0)
+
     def output_summary(self, data, args):
         # online is a dictoionary with key=start_time_stamp, value on time_seconds
         debug = args.verbose
         MATRIX = args.daily
         if args.start:
-            self.is_exist_data_file()
-            start = self.parse_date(args.start)
-            if start <> 0:
-                data_dict["start"] = start 
-                self.put_data_file()
-                os.exit(0)
+            self.set_start(args.start)
         if args.end:
-            self.is_exist_data_file()
-            end = self.parse_date(args.end)
-            if end <> 0:
-                data_file['end'] = end
-                self.put_data_file()
-                os.exit(0)
+            self.set_end(args.end)
+        # online is a dictionary. key=utc_timestamp when power came on, value=seconds ontime
         online = {}
         gap_start = None
+        if len(data) == 0:
+            print("No data for this period")
+            sys.exit(0)
         first_ts = data[0][0]
         first_str = self.ts2date(first_ts)
         last_ts = data[len(data)-1][0]
@@ -322,6 +367,7 @@ class ShowPowerHistory(Tools):
         print "length of log %s days, %s hours, %s minutes" % (days, hours, minutes)
         number_of_gaps = len(online) - 1
         print "number of power outages: %s" % number_of_gaps
+        # mysum is total power online seconds
         mysum = 0L
         power_list = []
         gap_length_list = []
@@ -331,7 +377,7 @@ class ShowPowerHistory(Tools):
                 mysum += online[key]
                 power_list.append( (key,online[key]) )
                 if first:
-                    gap_length_list.append( (online[key],key -last_key - online[last_key]) )
+                    gap_length_list.append( (last_key + online[last_key],key -last_key + online[last_key]) )
                 first = True
                 last_key = key
             # compute the average length of outage
@@ -343,9 +389,14 @@ class ShowPowerHistory(Tools):
             ts_list = sorted(power_list)
             last_seconds = power_list[len(power_list)-1][0] + power_list[len(power_list)-1][1]
             if debug:
+                print("power_list - utc_start, power on seconds")
                 for item, value in power_list:
                     print item, value
             shortest_gap = gap_list[0][1]
+            if debug:
+                print("sorted gap list:")
+                for i in range(len(gap_list)):
+                    print(gap_list[i][0],gap_list[i][1])
             if shortest_gap < 60:
                 print "shortest outage: %s seconds " % (shortest_gap)
             else:
@@ -356,7 +407,7 @@ class ShowPowerHistory(Tools):
             (days, hours, minutes) = self.dhm_from_seconds(longest_gap)
             print "longest outage: %s days %s hours %s minutes " % \
                                             (days,hours, minutes,)
-            average_per_day = (1 - float(mysum)/total_seconds) * 24
+            average_per_day = (float(mysum)/total_seconds) * 24
             print("Average power within 24 hours:%2.2f hours"%average_per_day)
 
             print "\n\nDISTRUBUTION OF POWER OVER THE DAY"
