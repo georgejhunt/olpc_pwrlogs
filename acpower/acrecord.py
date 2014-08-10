@@ -342,7 +342,8 @@ class ShowPowerHistory(Tools):
         first_str = self.ts2date(first_ts)
         last_ts = data[len(data)-1][0]
         last_str = self.ts2date(last_ts)
-        print("\n     SUMMARY OF AC POWER DURING PERIOD: %s to %s:\n" % (first_str, last_str,))
+        print("\n        SUMMARY OF AC POWER DURING PERIOD: %s to %s" % (first_str, last_str,))
+        print("   (Data ignored outside time period between %s and %s.)\n" % (self.ts2date(data_dict["start"]), self.ts2date(data_dict["end"]),))
         first = data[0][0]
         power_state = None
         power_start = first
