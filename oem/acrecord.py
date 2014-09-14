@@ -25,6 +25,32 @@ import logging
 import json
 import glob
 from gettext import gettext as _
+import urllib2, httplib
+
+# The listener expects frames or the form 
+#
+# NodeID val1 val2 ...
+#
+# ended by \r\n.
+
+import socket
+#APIKEY="c1b03a5bf02f8550bab762a9bdd5d315"
+#APIKEY="8b1f5083aebc01a84cbdc7d3cc6b17a5" # this is for emoncms.org
+APIKEY="c1b03a5bf02f8550bab762a9bdd5d315" # this is for powersummary.info
+ISPURL="powersummary.info/econcms"
+#NODE="50867"
+NODE="4"
+
+##############
+# Parameters #
+##############
+
+# HOST: hosname or IP address of the machine running the gateway
+HOST = 'localhost'
+#HOST = '192.168.1.2'
+
+# PORT: port number to the listener, as configured in the gateway
+PORT = 50011
 
 VERSION = "0.1"
 AC = "1"
@@ -321,10 +347,57 @@ class ProcessPowerHistory(Tools):
             print("end date not recognized")
             sys.exit(0)
 
-    def output(self, outstr):
-        print(outstr)
+    def output_gh(self,outlist):
+        print("ts:%s time:%s value:%s"%(outlist[0],self.ts2str(float(outlist[0])),outlist[2],))
+
+    def output(self, outlist):
+        #########
+        # Frame #
+        #########
+
+        #frame = 'Timestamp NodeID  val1,...'
+        frame = str(outlist[0])+" "+outlist[1]+" "+outlist[2]+'\r\n'
+
+        ########
+        # Code #
+        ########
+
+        # Append line ending
+        frame = frame + '\r\n'
+
+        # Send frame
+        # Prepare URL string of the form
+        # 'http://domain.tld/emoncms/input/post.json?apikey=12345?timestamp=10439456
+        # &node=10&json={1:1806, 2:1664}'
+        #url_string = ("http://powersummary.info/emoncms/feed/insert.json?id=4&time=%s&value=%s&apikey=%s"% 
+        url_string = ("http://%s/feed/update.json?id=%s&time=%s&value=%s&apikey=%s"% 
+                (ISPURL,NODE,outlist[0],outlist[2],APIKEY,))
+        print(url_string)
+        # Send data to server
+        try:
+            result = urllib2.urlopen(url_string, timeout=60)
+        except urllib2.HTTPError as e:
+            print("Couldn't send to server, HTTPError: " + 
+                                 str(e.code))
+        except urllib2.URLError as e:
+            print("Couldn't send to server, URLError: " + 
+                                 str(e.reason))
+        except httplib.HTTPException:
+            print("Couldn't send to server, HTTPException")
+        except Exception:
+            import traceback
+            print("Couldn't send to server, Exception: " + 
+                                 traceback.format_exc())
+        else:
+            if (result.getcode() == 200):
+                print("Send ok")
+                return True
+            else:
+                print("Send failure:%s"%result.getcode())
+
 
     def olpc2oem(self,data,args):
+        # called by 2oem --just slight mods from acpower to cp data to powersummary.org
         debug = args.verbose
         if args.start:
             self.set_start(args.start, args.verbose)
@@ -335,22 +408,57 @@ class ProcessPowerHistory(Tools):
             if debug:
                 print(data[index])
             if data[index][7].find('ac-online-event') != -1:
-                self.output( (data[index][0],AC,"1",) )
+                self.output( (str(data[index][0]),AC,"1",) )
                 power = True
                 continue
             elif data[index][7].find('ac-offline-event') != -1:
-                self.output( (data[index][0],AC,"0",) )
+                self.output( (str(data[index][0]),AC,"0",) )
                 power = False
                 continue
             elif data[index][7].find('shutdown') != -1 and power:
-                self.output( (data[index][0],AC,"0",) )
+                self.output( (str(data[index][0]),AC,"0",) )
                 continue
+        return
         # output the charging and dischargind data
         for index in range(len(data)):
             if data[index][7].find('battery-event') != -1:
                 self.output( (data[index][0],CHARGE,data[index][1],data[index][2],data[index][3],) )
                 continue
          
+    def output_oem(self, data,args):
+        # Prepare URL string of the form
+        # 'http://domain.tld/emoncms/input/post.json?apikey=12345
+        # &node=10&json={1:1806, 2:1664}'
+        url_string = self._settings['protocol'] + self._settings['domain'] + \
+                     self._settings['path'] + '/input/post.json?apikey=' + \
+                     self._settings['apikey'] + data_string
+        self._log.debug("URL string: " + url_string)
+
+        # Send data to server
+        self._log.info("Sending to " + 
+                          self._settings['domain'] + self._settings['path'])
+        try:
+            result = urllib2.urlopen(url_string, timeout=60)
+        except urllib2.HTTPError as e:
+            self._log.warning("Couldn't send to server, HTTPError: " + 
+                                 str(e.code))
+        except urllib2.URLError as e:
+            self._log.warning("Couldn't send to server, URLError: " + 
+                                 str(e.reason))
+        except httplib.HTTPException:
+            self._log.warning("Couldn't send to server, HTTPException")
+        except Exception:
+            import traceback
+            self._log.warning("Couldn't send to server, Exception: " + 
+                                 traceback.format_exc())
+        else:
+            while (line == result.readline()):
+                print line
+            if (result.readline() == 'ok'):
+                self._log.debug("Send ok")
+                return True
+            else:
+                self._log.warning("Send failure")
 
 
     def output_summary(self, data, args):
